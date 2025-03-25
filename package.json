@@ -4,7 +4,7 @@
   "description": "A web scraping tool to extract business leads from Google Maps.",
   "author": "Miko Andre San Miguel",
   "license": "ISC",
-  "type": "commonjs", 
+  "type": "commonjs",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -16,9 +16,11 @@
     "dayjs": "^1.11.13",
     "electron": "^35.0.2",
     "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
     "puppeteer": "^24.4.0",
     "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "electron-installer-windows": "^3.0.0",

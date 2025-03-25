@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lead Generator 5000 Unit Manager</title>
+    <script defer src="renderer.js"></script> <!-- External JS file -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
     <style>
         * {
@@ -14,38 +16,37 @@
         }
 
         body {
-            background-image: url('src/img/hir.jpg');
+            background-image: url('src/img/mamamo.png');
             width: 100vw;
             height: 100vh;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             position: relative;
+            padding-top: 50px;
         }
 
-        /* Fixed 2% Margin Border */
         .border-frame {
             position: absolute;
             top: 2%;
             left: 2%;
-            width: 96%; /* Ensures border remains at a fixed 2% margin */
+            width: 96%;
             height: 96%;
             border: 3px solid gold;
             pointer-events: none;
         }
 
         .search-container {
-            position: relative;
             width: 90%;
             max-width: 800px;
             display: flex;
             justify-content: center;
             align-items: center;
             flex-direction: column;
-            transform: translateY(-50px); /* Moves up by 50px */
+            margin-bottom: 20px;
         }
 
         .search-bar {
@@ -53,11 +54,11 @@
             max-width: 600px;
             display: flex;
             align-items: center;
-            border: 2px solid #FFD700; 
+            border: 2px solid #FFD700;
             border-radius: 50px;
             padding: 10px 20px;
-            background: linear-gradient(45deg, #b8860b, #d4af37, #ffd700, #ffcc00); 
-            box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5); /* Gold shadow */
+            background-color: black;
+            box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
             position: relative;
         }
         .search-bar input {
@@ -82,37 +83,86 @@
             cursor: pointer;
         }
 
-        .gold-splash {
-            position: absolute;
-            bottom: -50px;
-            right: -50px;
-            width: 200px;
-            height: auto;
+        table {
+            width: 90%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: transparent;
+            border-radius: 10px;
+            overflow: hidden;
         }
 
-        #status {
+        th, td {
+            border: 1px solid gold;
+            padding: 10px;
+            text-align: left;
             color: white;
+        }
+
+        th {
+            background-color: black;
+            color: white;
+            font-weight: bold;
+            border-bottom: 2px solid gold;
+        }
+
+        #downloadBtn {
             margin-top: 10px;
+            padding: 10px 20px;
+            border: none;
+            background: gold;
+            color: black;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .table-container {
+            width: 90%;
+            max-width: 90%;
+            height: 80%;
+            overflow-y: auto;
+            overflow-x: auto;
+            border: 2px solid gold;
+            background-color: black;
+        }
+
+        th, td {
+            white-space: nowrap; /* Prevents text from breaking into multiple lines */
         }
     </style>
 </head>
 <body>
-
-    <!-- Fixed 2% Margin Border -->
     <div class="border-frame"></div>
 
-    <!-- Search Container -->
     <div class="search-container">
         <div class="search-bar">
             <input type="text" id="searchQuery" placeholder="Search..." />
-            <span class="search-icon" onclick="runScraper()">&#128269;</span>
+            <span class="search-icon" onclick="runScraper()">🔍</span>
         </div>
-
-        <p id="status"></p>
+        <p id="status" style="color: white;"></p>
     </div>
+
+    <div class="table-container">
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Company Name</th>
+                    <th>Phone Number</th>
+                    <th>Email Address</th>
+                    <th>Company Address</th>
+                    <th>Business Website</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    
+    <button id="downloadBtn" onclick="downloadData()">Download Data</button>
 
     <script>
         const { ipcRenderer } = require("electron");
+        const ExcelJS = require("exceljs");
 
         function runScraper() {
             const query = document.getElementById("searchQuery").value.trim();
@@ -121,14 +171,76 @@
                 return;
             }
             document.getElementById("status").innerText = "⏳ Running scraper...";
-
             ipcRenderer.send("run-scraper", query);
         }
 
         ipcRenderer.on("scraper-status", (event, message) => {
             document.getElementById("status").innerText = message;
         });
-    </script>
 
+        ipcRenderer.on("scraper-results", (event, data) => {
+            const tableBody = document.querySelector("#resultsTable tbody");
+            tableBody.innerHTML = "";
+
+            data.forEach(business => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${business.storeName || "N/A"}</td>
+                    <td>${business.phone || "No info"}</td>
+                    <td>${business.email || "No info"}</td>
+                    <td>${business.address || "No info"}</td>
+                    <td>${business.bizWebsite ? `<a href='${business.bizWebsite}' target='_blank'>Website</a>` : "No info"}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        });
+
+        function downloadData() {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Scraped Data");
+
+    // Define headers with styling
+    worksheet.columns = [
+        { header: "Company Name", key: "company", width: 30 },
+        { header: "Phone Number", key: "phone", width: 20 },
+        { header: "Email Address", key: "email", width: 30 },
+        { header: "Company Address", key: "address", width: 40 },
+        { header: "Business Website", key: "website", width: 30 }
+    ];
+
+    // Get table data
+    const rows = document.querySelectorAll("#resultsTable tbody tr");
+
+    rows.forEach(row => {
+        const columns = row.querySelectorAll("td");
+        worksheet.addRow({
+            company: columns[0].innerText.trim(),
+            phone: columns[1].innerText.trim(),
+            email: columns[2].innerText.trim(),
+            address: columns[3].innerText.trim(),
+            website: columns[4].innerText.trim()
+        });
+    });
+
+    // Auto-adjust column width based on content
+    worksheet.columns.forEach(column => {
+        let maxLength = 0;
+        column.eachCell({ includeEmpty: true }, cell => {
+            const cellValue = cell.value ? cell.value.toString().length : 10;
+            if (cellValue > maxLength) maxLength = cellValue;
+        });
+        column.width = maxLength + 5; // Add extra padding
+    });
+
+    // Save file as Excel
+    workbook.xlsx.writeBuffer().then(buffer => {
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        saveAs(blob, "ScrapedData.xlsx");
+    }).catch(err => {
+        console.error("Error generating Excel file:", err);
+    });
+}
+
+    </script>
 </body>
 </html>

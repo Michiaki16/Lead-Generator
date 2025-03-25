@@ -15,6 +15,7 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
       headless: "new",
       executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      
     });
 
     const page = await browserMaps.newPage();
@@ -53,21 +54,31 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
     });
 
     console.log(`Found ${businesses.length} businesses. Scraping websites for emails...`);
-    event.reply("scraper-status", `Found ${businesses.length} businesses. Scraping emails...`);
+    event.reply("scraper-status", `Found ${businesses.length} businesses. Estimating time...`);
 
-    await scrapeEmails(businesses, event);
+    const estimatedTime = estimateScrapingTime(businesses.length);
+    console.log(`Estimated time required: ${estimatedTime} minutes`);
+    event.reply("scraper-status", `Estimated time required: ${estimatedTime} minutes`);
+
+    await scrapeEmailsParallel(businesses, event);
 
     await browserMaps.close();
 
-    console.log("Saving data to Excel...");
-    await saveToExcel(businesses, event);
-    console.log("Data saved successfully!");
-
-    event.reply("scraper-status", "Scraping completed! Data saved.");
+    console.log("Scraping completed, sending results to frontend...");
+    event.reply("scraper-results", businesses);
+    event.reply("scraper-status", "Scraping completed!");
   } catch (error) {
     console.error("Error in searchGoogleMaps:", error.message);
     event.reply("scraper-status", `Error: ${error.message}`);
   }
+}
+
+function estimateScrapingTime(businessCount) {
+  const mapsScrapingTime = businessCount * 4;
+  const emailScrapingTime = Math.ceil((businessCount * 15) / 5);
+
+  const totalSeconds = mapsScrapingTime + emailScrapingTime;
+  return Math.ceil(totalSeconds / 60);
 }
 
 async function saveToExcel(businesses, event) {
@@ -91,15 +102,13 @@ async function saveToExcel(businesses, event) {
     const timestamp = dayjs().format("MM-DD-YYYY_hh-mm_A");
     const filePath = path.join("C:\\Users\\Lyka Mae\\Downloads", `LeadsNgIna_${timestamp}.xlsx`);
 
-
-
     await workbook.xlsx.writeFile(filePath);
     console.log(`Excel file saved: ${filePath}`);
 
-    event.reply("scraper-status", `Data saved to ${filePath}`);
+    event.reply("download-status", `Data saved to ${filePath}`);
   } catch (error) {
     console.error("Error saving to Excel:", error.message);
-    event.reply("scraper-status", `Error saving data: ${error.message}`);
+    event.reply("download-status", `Error saving data: ${error.message}`);
   }
 }
 
@@ -134,65 +143,59 @@ async function autoScroll(page) {
   });
 }
 
-async function scrapeEmails(businesses, event) {
+async function scrapeEmailsParallel(businesses, event) {
   const browser = await puppeteerExtra.launch({
     headless: "new",
     executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
-  for (const biz of businesses) {
-    if (!biz.bizWebsite) {
-      biz.email = "No information";
-      continue;
-    }
+  const batchSize = 5;
+  const businessChunks = [];
 
-    try {
-      const page = await browser.newPage();
-      await page.goto(biz.bizWebsite, {
-        waitUntil: "domcontentloaded",
-        timeout: 30000,
-      });
+  for (let i = 0; i < businesses.length; i += batchSize) {
+    businessChunks.push(businesses.slice(i, i + batchSize));
+  }
 
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+  for (const [index, chunk] of businessChunks.entries()) {
+    console.log(`Processing batch ${index + 1} of ${businessChunks.length}...`);
 
-      const pageHtml = await page.content();
-      const emailMatch = pageHtml.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    await Promise.all(
+      chunk.map(async (biz) => {
+        if (!biz.bizWebsite) {
+          biz.email = "No information";
+          return;
+        }
 
-      if (!emailMatch) {
-        console.log(`Searching for contact page in ${biz.bizWebsite}...`);
+        try {
+          const page = await browser.newPage();
+          await page.goto(biz.bizWebsite, {
+            waitUntil: "domcontentloaded",
+            timeout: 30000,
+          });
 
-        await page.waitForSelector("a", { timeout: 10000 });
-
-        const contactLinks = await page.evaluate(() => {
-          return Array.from(document.querySelectorAll("a"))
-            .filter((link) => /contact|contact us/i.test(link.textContent))
-            .map((link) => link.href);
-        });
-
-        if (contactLinks.length > 0) {
-          console.log(`Navigating to contact page on ${contactLinks[0]}...`);
-          await page.goto(contactLinks[0], { waitUntil: "domcontentloaded" });
           await new Promise((resolve) => setTimeout(resolve, 5000));
 
-          const contactHtml = await page.content();
-          const contactEmailMatch = contactHtml.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-          biz.email = contactEmailMatch ? contactEmailMatch[0] : "No information";
-        } else {
+          const pageHtml = await page.content();
+          const emailMatch = pageHtml.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+
+          biz.email = emailMatch ? emailMatch[0] : "No information";
+
+          await page.close();
+        } catch (error) {
+          console.error(`Error fetching details for ${biz.bizWebsite}: ${error.message}`);
           biz.email = "No information";
         }
-      } else {
-        biz.email = emailMatch[0];
-      }
+      })
+    );
 
-      await page.close();
-    } catch (error) {
-      console.error(`Error fetching details for ${biz.bizWebsite}: ${error.message}`);
-      biz.email = "No information";
+    if (index < businessChunks.length - 1) {
+      console.log("Waiting 15 seconds before next batch...");
+      await new Promise((resolve) => setTimeout(resolve, 15000));
     }
   }
 
   await browser.close();
 }
 
-module.exports = { searchGoogleMaps };
+module.exports = { searchGoogleMaps, saveToExcel };
