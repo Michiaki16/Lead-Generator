@@ -16,17 +16,39 @@
         }
 
         body {
-            background-image: url('src/img/bg1.png');
             width: 100vw;
             height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
+            justify-content: center;
+            overflow: hidden;
             position: relative;
             padding-top: 50px;
+            
+            /* Background Image */
+            background-image: url("src/img/mamamo3.png");
+            background-repeat: no-repeat;
+            background-size: cover; /* Ensures full coverage */
+            background-position: center; /* Centers the image */
+            background-attachment: fixed; /* Keeps background static while scrolling */
+            color: white;
+        }
+
+        /* Live animated gold background */
+        .background-animation {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.2) 10%, transparent 70%);
+            animation: glowing 5s infinite alternate;
+        }
+
+        @keyframes glowing {
+            0% { filter: blur(5px); opacity: 0.6; }
+            100% { filter: blur(10px); opacity: 1; }
         }
 
         .border-frame {
@@ -35,8 +57,28 @@
             left: 2%;
             width: 96%;
             height: 96%;
+           
             border: 3px solid gold;
             pointer-events: none;
+            box-shadow: 
+                0 0 10px gold, 
+                0 0 20px rgba(255, 215, 0, 0.7), 
+                0 0 30px rgba(255, 215, 0, 0.5);
+            animation: glow 1.5s infinite alternate;
+        }
+        @keyframes glow {
+            0% {
+                box-shadow: 
+                    0 0 10px gold, 
+                    0 0 20px rgba(255, 215, 0, 0.7), 
+                    0 0 30px rgba(255, 215, 0, 0.5);
+            }
+            100% {
+                box-shadow: 
+                    0 0 15px gold, 
+                    0 0 25px rgba(255, 215, 0, 0.9), 
+                    0 0 35px rgba(255, 215, 0, 0.7);
+            }
         }
 
         .search-container {
@@ -47,6 +89,8 @@
             align-items: center;
             flex-direction: column;
             margin-bottom: 20px;
+            position: relative;
+            z-index: 10;
         }
 
         .search-bar {
@@ -61,6 +105,7 @@
             box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
             position: relative;
         }
+
         .search-bar input {
             flex: 1;
             border: none;
@@ -83,18 +128,28 @@
             cursor: pointer;
         }
 
-        table {
+        .table-container {
             width: 90%;
+            max-width: 90%;
+            height: 70%;
+            overflow-y: auto;
+            overflow-x: auto;
+            border: 2px solid gold;
+            background-color: rgba(0, 0, 0, 0.6); 
+            position: relative;
+            z-index: 10;
+        }
+
+        table {
+            width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
             background: transparent;
             border-radius: 10px;
             overflow: hidden;
-            margin: auto;
         }
 
         th, td {
-            margin-top: 10%;
             border: 1px solid gold;
             padding: 10px;
             text-align: left;
@@ -102,7 +157,6 @@
         }
 
         th {
-            margin-top: 10%;
             background-color: transparent;
             color: white;
             font-weight: bold;
@@ -119,23 +173,22 @@
             cursor: pointer;
             border-radius: 5px;
         }
-
-        .table-container {
-            width: 90%;
-            max-width: 90%;
-            height: 80%;
-            overflow-y: auto;
-            overflow-x: auto;
-            border: 2px solid gold;
-            background-color: transparent;
+                /* Gold Snow Canvas */
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 1;
         }
 
-        th, td {
-            white-space: nowrap; /* Prevents text from breaking into multiple lines */
-        }
     </style>
 </head>
 <body>
+    <canvas id="goldCanvas"></canvas> 
+
     <div class="border-frame"></div>
 
     <div class="search-container">
@@ -160,43 +213,130 @@
             <tbody></tbody>
         </table>
     </div>
-    
+
     <button id="downloadBtn" onclick="downloadData()">Download Data</button>
 
     <script>
         const { ipcRenderer } = require("electron");
         const ExcelJS = require("exceljs");
+        let startTime;
+let processedCount = 0;
+let totalBusinesses = 0;
+let estimatedTime = "Calculating...";
 
-        function runScraper() {
-            const query = document.getElementById("searchQuery").value.trim();
-            if (!query) {
-                document.getElementById("status").innerText = "⚠️ Please enter a search term!";
-                return;
+function runScraper() {
+    const query = document.getElementById("searchQuery").value.trim();
+    if (!query) {
+        document.getElementById("status").innerText = "⚠️ Please enter a search term!";
+        return;
+    }
+
+    document.getElementById("status").innerText = "⏳ Running scraper... Estimating time...";
+    
+    startTime = Date.now(); // Mark start time
+    processedCount = 0;
+    estimatedTime = "Calculating...";
+
+    ipcRenderer.send("run-scraper", query);
+}
+
+ipcRenderer.on("scraper-status", (event, message) => {
+    document.getElementById("status").innerText = `⏳ ${message}`;
+});
+
+ipcRenderer.on("estimated-time", (event, estimatedTimeMinutes) => {
+    estimatedTime = `${estimatedTimeMinutes} min remaining`;
+    document.getElementById("status").innerText = `⏳ Scraping... ${estimatedTime}`;
+});
+
+ipcRenderer.on("scraper-progress", (event, progress) => {
+    processedCount++;
+    totalBusinesses = progress.total; // Update total count dynamically
+
+    let elapsedTime = (Date.now() - startTime) / 1000; // Time in seconds
+    let avgTimePerBusiness = elapsedTime / processedCount; // Average time per business
+    let timeRemaining = avgTimePerBusiness * (totalBusinesses - processedCount);
+
+    estimatedTime = timeRemaining > 60
+        ? `${Math.ceil(timeRemaining / 60)} min remaining`
+        : `${Math.ceil(timeRemaining)} sec remaining`;
+
+    document.getElementById("status").innerText = `⏳ Scraping... ${processedCount}/${totalBusinesses} completed. ${estimatedTime}`;
+});
+
+ipcRenderer.on("scraper-results", (event, data) => {
+    const tableBody = document.querySelector("#resultsTable tbody");
+    tableBody.innerHTML = "";
+
+    data.forEach(business => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${business.storeName || "N/A"}</td>
+            <td>${business.phone || "No info"}</td>
+            <td>${business.email || "No info"}</td>
+            <td>${business.address || "No info"}</td>
+            <td>${business.bizWebsite ? `<a href='${business.bizWebsite}' target='_blank'>Website</a>` : "No info"}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+
+    document.getElementById("status").innerText = "✅ Extraction complete!";
+});
+
+
+        const canvas = document.getElementById('goldCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const particles = [];
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.radius = Math.random() * 3 + 1;
+                this.opacity = Math.random() * 0.5 + 0.5;
+                this.speedY = Math.random() * 1 + 0.5;
+                this.speedX = Math.random() * 1 - 0.5;
+                this.color = `rgba(255, 215, 0, ${this.opacity})`;
             }
-            document.getElementById("status").innerText = "⏳ Running scraper...";
-            ipcRenderer.send("run-scraper", query);
+
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX;
+                if (this.y > canvas.height) {
+                    this.y = 0;
+                    this.x = Math.random() * canvas.width;
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
         }
 
-        ipcRenderer.on("scraper-status", (event, message) => {
-            document.getElementById("status").innerText = message;
-        });
+        function initParticles() {
+            for (let i = 0; i < 100; i++) {
+                particles.push(new Particle());
+            }
+        }
 
-        ipcRenderer.on("scraper-results", (event, data) => {
-            const tableBody = document.querySelector("#resultsTable tbody");
-            tableBody.innerHTML = "";
-
-            data.forEach(business => {
-                const row = document.createElement("tr");
-                row.innerHTML = `
-                    <td>${business.storeName || "N/A"}</td>
-                    <td>${business.phone || "No info"}</td>
-                    <td>${business.email || "No info"}</td>
-                    <td>${business.address || "No info"}</td>
-                    <td>${business.bizWebsite ? `<a href='${business.bizWebsite}' target='_blank'>Website</a>` : "No info"}</td>
-                `;
-                tableBody.appendChild(row);
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((particle) => {
+                particle.update();
+                particle.draw();
             });
-        });
+            requestAnimationFrame(animateParticles);
+        }
+
+        initParticles();
+        animateParticles();
 
         function downloadData() {
     const workbook = new ExcelJS.Workbook();
@@ -243,7 +383,6 @@
         console.error("Error generating Excel file:", err);
     });
 }
-
     </script>
 </body>
 </html>

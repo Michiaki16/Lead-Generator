@@ -35,3 +35,4 @@ ipcRenderer.on("download-status", (event, message) => {
     console.log("🔹 Download status:", message);
     alert(message);
 });
+
