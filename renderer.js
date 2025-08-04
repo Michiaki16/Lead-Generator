@@ -1,4 +1,3 @@
-
 let startTime;
 let processedCount = 0;
 let totalBusinesses = 0;
@@ -109,7 +108,7 @@ function updateSendEmailsButton() {
     const sendBtn = document.getElementById('sendEmailsBtn');
     const hasData = document.querySelectorAll("#resultsTable tbody tr").length > 0;
     const hasTemplate = emailTemplate.length > 0;
-    
+
     sendBtn.disabled = !isLoggedIn || !hasData || !hasTemplate;
 }
 
@@ -122,7 +121,7 @@ function runScraper() {
 
     scrapingInProgress = true;
     document.getElementById("status").innerText = "⏳ Running scraper... Estimating time...";
-    
+
     startTime = Date.now();
     processedCount = 0;
     estimatedTime = "Calculating...";
@@ -179,7 +178,7 @@ function updateAuthUI() {
 function toggleSelectAll() {
     const selectAllCheckbox = document.getElementById('selectAll');
     const rowCheckboxes = document.querySelectorAll('.row-checkbox');
-    
+
     rowCheckboxes.forEach(checkbox => {
         checkbox.checked = selectAllCheckbox.checked;
     });
@@ -190,7 +189,7 @@ function removeSelected() {
     rowCheckboxes.forEach(checkbox => {
         checkbox.closest('tr').remove();
     });
-    
+
     document.getElementById('selectAll').checked = false;
     updateSendEmailsButton();
 }
@@ -198,7 +197,7 @@ function removeSelected() {
 function filterTable() {
     const filterValue = document.getElementById('companySearch').value.toLowerCase();
     const rows = document.querySelectorAll("#resultsTable tbody tr");
-    
+
     rows.forEach(row => {
         const companyName = row.cells[1].textContent.toLowerCase();
         row.style.display = companyName.includes(filterValue) ? '' : 'none';
@@ -228,27 +227,27 @@ function sendEmails() {
         alert("Please log in with your Google account first");
         return;
     }
-    
+
     if (!emailTemplate.trim()) {
         alert("Please create an email template first");
         return;
     }
-    
+
     const rows = document.querySelectorAll("#resultsTable tbody tr");
     if (rows.length === 0) {
         alert("No data available to send emails");
         return;
     }
-    
+
     const selectedRows = document.querySelectorAll('.row-checkbox:checked');
     const targetRows = selectedRows.length > 0 ? selectedRows : document.querySelectorAll('.row-checkbox');
-    
+
     const emailData = [];
     targetRows.forEach(checkbox => {
         const row = checkbox.closest('tr');
         const cells = row.querySelectorAll('td');
         const email = cells[3].textContent.trim();
-        
+
         if (email && email !== "No info" && email !== "Fetching...") {
             emailData.push({
                 companyName: cells[1].textContent.trim(),
@@ -268,7 +267,30 @@ function sendEmails() {
     if (confirm(`Send emails to ${emailData.length} recipients?`)) {
         emailSendingInProgress = true;
         document.getElementById('sendEmailsBtn').disabled = true;
-        window.electronAPI.sendEmails({ emailData, template: emailTemplate });
+
+        // Retrieve email subject from localStorage
+        const emailSubject = localStorage.getItem('emailSubject') || "Business Inquiry for {companyName}";
+
+        // Retrieve email template from localStorage
+        const emailContent = localStorage.getItem('emailTemplate') || "";
+
+        emailData.forEach(data => {
+          const emailSubjectProcessed = emailSubject
+          .replace(/{companyName}/g, data.companyName || "")
+          .replace(/{email}/g, data.email || "")
+          .replace(/{phone}/g, data.phone || "")
+          .replace(/{address}/g, data.address || "")
+          .replace(/{website}/g, data.website || "");
+
+        const emailMessage = [
+          `To: ${data.email}`,
+          `Subject: ${emailSubjectProcessed}`,
+          `Content-Type: text/html; charset="UTF-8"`,
+          '',
+          emailContent
+        ].join('\n');
+            window.electronAPI.sendEmails({ emailData: [data], template: emailMessage });
+        });
     }
 }
 
@@ -279,7 +301,7 @@ function importFile() {
 function handleFileImport(event) {
     const file = event.target.files[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
@@ -288,7 +310,7 @@ function handleFileImport(event) {
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             const jsonData = XLSX.utils.sheet_to_json(worksheet);
-            
+
             populateTableFromImport(jsonData);
             document.getElementById('statusMessage').textContent = "✅ Data imported successfully!";
             updateSendEmailsButton();
@@ -328,6 +350,40 @@ function clearTable() {
 function openEmailTemplateModal() {
     document.getElementById('emailTemplateModal').style.display = 'block';
     document.getElementById('emailTemplateText').value = emailTemplate;
+
+    // Add input for email subject
+    const subjectInput = document.createElement('input');
+    subjectInput.type = 'text';
+    subjectInput.id = 'emailSubject';
+    subjectInput.placeholder = 'Enter email subject';
+    subjectInput.style.width = '100%';
+    subjectInput.style.marginBottom = '10px';
+    subjectInput.value = localStorage.getItem('emailSubject') || ""; // Load saved subject
+    document.getElementById('emailTemplateModal').insertBefore(subjectInput, document.getElementById('emailTemplateText'));
+
+    // Add input for image upload
+    const imageInput = document.createElement('input');
+    imageInput.type = 'file';
+    imageInput.id = 'imageUpload';
+    imageInput.accept = 'image/*';
+    document.getElementById('emailTemplateModal').appendChild(imageInput);
+
+    // Event listener for image upload
+    imageInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                localStorage.setItem('emailFooterImage', e.target.result); // Save image data as base64
+            }
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // Set default email content if empty
+    if (!document.getElementById('emailTemplateText').value) {
+        document.getElementById('emailTemplateText').value = "Good Day, {companyName}!";
+    }
 }
 
 function closeEmailTemplateModal() {
@@ -337,6 +393,11 @@ function closeEmailTemplateModal() {
 function saveEmailTemplate() {
     emailTemplate = document.getElementById('emailTemplateText').value;
     localStorage.setItem('emailTemplate', emailTemplate);
+
+    // Save email subject
+    const emailSubject = document.getElementById('emailSubject').value;
+    localStorage.setItem('emailSubject', emailSubject);
+
     closeEmailTemplateModal();
     updateSendEmailsButton();
     alert("Email template saved successfully!");

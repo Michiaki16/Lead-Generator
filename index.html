@@ -336,6 +336,48 @@
         .save-btn { background-color: #4CAF50; color: white; }
         .cancel-btn { background-color: #666; color: white; }
         .hidden-file-input { display: none; }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: white;
+            font-weight: bold;
+        }
+
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid gold;
+            border-radius: 5px;
+            background-color: #222;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        .form-group input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid gold;
+            border-radius: 5px;
+            background-color: #222;
+            color: white;
+        }
+
+        .image-preview {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .image-preview img {
+            max-width: 200px;
+            max-height: 150px;
+            border: 1px solid gold;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -401,22 +443,40 @@
         <div class="modal-content">
             <span class="close" id="closeModal">&times;</span>
             <h2>Email Template</h2>
-            <textarea id="emailTemplateText" placeholder="Enter your email template here...
+            
+            <div class="form-group">
+                <label for="emailSubject">Email Subject:</label>
+                <input type="text" id="emailSubject" placeholder="Enter email subject..." 
+                       value="Business Inquiry for {companyName}">
+            </div>
+            
+            <div class="form-group">
+                <label for="emailTemplateText">Email Body:</label>
+                <textarea id="emailTemplateText" placeholder="Enter your email template here...
 
 Available variables:
 {companyName} - Company name
 {email} - Email address
 {phone} - Phone number
 {address} - Company address
-{website} - Business website
+{website} - Business website">Good Day, {companyName}!
 
-Example:
-Dear {companyName},
+We hope this message finds you well. We are reaching out to explore potential business opportunities and discuss how we can support your company's growth.
 
-We hope this message finds you well...
+Your business has caught our attention, and we believe there may be valuable synergies between our organizations. We would love to schedule a brief conversation to learn more about your needs and share how our services might benefit {companyName}.
+
+Please let us know if you would be interested in a short discussion at your convenience.
 
 Best regards,
-Your Name"></textarea>
+Your Name</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="footerImageUpload">Footer Signature Image:</label>
+                <input type="file" id="footerImageUpload" accept="image/*">
+                <div id="imagePreview" class="image-preview"></div>
+            </div>
+            
             <div class="modal-buttons">
                 <button class="modal-btn cancel-btn" id="cancelModalBtn">Cancel</button>
                 <button class="modal-btn save-btn" id="saveTemplateBtn">Save Template</button>

@@ -127,7 +127,15 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
       }
 
       try {
-        let emailContent = template
+        let emailContent = (template.body || template)
+          .replace(/{companyName}/g, data.companyName || "")
+          .replace(/{email}/g, data.email || "")
+          .replace(/{phone}/g, data.phone || "")
+          .replace(/{address}/g, data.address || "")
+          .replace(/{website}/g, data.website || "");
+
+        let emailSubject = (template.subject || "Business Inquiry for {companyName}");
+        const emailSubjectProcessed = emailSubject
           .replace(/{companyName}/g, data.companyName || "")
           .replace(/{email}/g, data.email || "")
           .replace(/{phone}/g, data.phone || "")
@@ -136,7 +144,7 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
 
         const emailMessage = [
           `To: ${data.email}`,
-          `Subject: Business Inquiry for ${data.companyName}`,
+          `Subject: ${emailSubjectProcessed}`,
           `Content-Type: text/html; charset="UTF-8"`,
           '',
           emailContent
