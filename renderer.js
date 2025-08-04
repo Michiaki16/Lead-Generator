@@ -15,8 +15,6 @@ function initializeApp() {
     loadEmailTemplate();
     updateAuthUI();
     setupEventListeners();
-    initParticles();
-    animateParticles();
 }
 
 function setupEventListeners() {
@@ -370,59 +368,5 @@ function downloadData() {
     window.electronAPI.downloadExcel(data);
 }
 
-// Gold particles animation
-const canvas = document.getElementById('goldCanvas');
-const ctx = canvas.getContext('2d');
-const particles = [];
 
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-
-class Particle {
-    constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.radius = Math.random() * 3 + 1;
-        this.opacity = Math.random() * 0.5 + 0.5;
-        this.speedY = Math.random() * 1 + 0.5;
-        this.speedX = Math.random() * 1 - 0.5;
-        this.color = `rgba(255, 215, 0, ${this.opacity})`;
-    }
-
-    update() {
-        this.y += this.speedY;
-        this.x += this.speedX;
-        if (this.y > canvas.height) {
-            this.y = 0;
-            this.x = Math.random() * canvas.width;
-        }
-    }
-
-    draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.fill();
-    }
-}
-
-function initParticles() {
-    resizeCanvas();
-    for (let i = 0; i < 100; i++) {
-        particles.push(new Particle());
-    }
-}
-
-function animateParticles() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    particles.forEach((particle) => {
-        particle.update();
-        particle.draw();
-    });
-    requestAnimationFrame(animateParticles);
-}
-
-window.addEventListener('resize', resizeCanvas);
 window.addEventListener('load', initializeApp);

@@ -21,7 +21,7 @@
             flex-direction: column;
             overflow: hidden;
             position: relative;
-            background-image: url("src/img/mamamo3.png");
+            background-image: url("src/img/bg4.jpg");
             background-repeat: no-repeat;
             background-size: cover;
             background-position: center;
@@ -272,22 +272,7 @@
             z-index: 1;
         }
 
-        .border-frame {
-            position: absolute;
-            top: 2%;
-            left: 2%;
-            width: 96%;
-            height: 96%;
-            border: 3px solid gold;
-            pointer-events: none;
-            box-shadow: 0 0 10px gold, 0 0 20px rgba(255, 215, 0, 0.7), 0 0 30px rgba(255, 215, 0, 0.5);
-            animation: glow 1.5s infinite alternate;
-        }
-
-        @keyframes glow {
-            0% { box-shadow: 0 0 10px gold, 0 0 20px rgba(255, 215, 0, 0.7), 0 0 30px rgba(255, 215, 0, 0.5); }
-            100% { box-shadow: 0 0 15px gold, 0 0 25px rgba(255, 215, 0, 0.9), 0 0 35px rgba(255, 215, 0, 0.7); }
-        }
+        
 
         .modal {
             display: none;
@@ -354,8 +339,7 @@
     </style>
 </head>
 <body>
-    <canvas id="goldCanvas"></canvas>
-    <div class="border-frame"></div>
+    
 
     <div class="top-header">
         <button class="cancel-all-btn" id="cancelAllBtn">Cancel All</button>
