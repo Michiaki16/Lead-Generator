@@ -10,6 +10,7 @@ const url = require('url');
 
 let mainWindow;
 let oauth2Client = null;
+let authServer = null; // Track the OAuth server
 let scrapingProcess = null;
 let emailSendingProcess = null;
 let userProfile = null;
@@ -28,6 +29,7 @@ app.whenReady().then(() => {
 
   mainWindow.loadFile("index.html");
   mainWindow.maximize();
+  mainWindow.setMenuBarVisibility(false); 
 });
 
 ipcMain.on("run-scraper", async (event, query) => {
@@ -51,54 +53,127 @@ ipcMain.on("cancel-scraper", async (event) => {
   }
 });
 
+    oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID = '82150396052-rnvsou8p8gp54cf235gc59eagtcgie9n.apps.googleusercontent.com',
+      process.env.GOOGLE_CLIENT_SECRET = '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',
+      'http://localhost:3000/oauth2callback'
+    );
+
+
 ipcMain.on("google-auth", async (event) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
       throw new Error('Google credentials not configured');
     }
 
-    oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      'http://localhost:3000/oauth2callback'
-    );
 
-    const authUrl = oauth2Client.generateAuthUrl({
-      access_type: 'offline',
-      scope: [
-        'https://www.googleapis.com/auth/gmail.send',
-        'https://www.googleapis.com/auth/userinfo.profile',
-        'https://www.googleapis.com/auth/userinfo.email'
-      ],
-    });
+const authUrl = oauth2Client.generateAuthUrl({
+  access_type: 'offline',
+  scope: [
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/userinfo.email'
+  ],
+  prompt: 'consent select_account' 
+});
+    
 
-    const server = http.createServer(async (req, res) => {
+    // Close previous server if still running
+    if (authServer) {
+      try { authServer.close(); } catch (e) {}
+      authServer = null;
+    }
+
+    authServer = http.createServer(async (req, res) => {
       const { code } = url.parse(req.url, true).query;
       
       if (code) {
         try {
-          const { tokens } = await oauth2Client.getAccessToken(code);
+          const { tokens } = await oauth2Client.getToken(code);
           oauth2Client.setCredentials(tokens);
           
           const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
           const { data: userInfo } = await oauth2.userinfo.get();
           userProfile = userInfo;
           
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end('<h1>Authentication successful! You can close this window.</h1>');
+res.writeHead(200, { 'Content-Type': 'text/html' });
+res.end(`
+  <html>
+    <head>
+      <title>Authentication Successful</title>
+      <style>
+        body {
+          background: linear-gradient(135deg, #43cea2 0%, #185a9d 100%);
+          color: #fff;
+          font-family: Arial, sans-serif;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          margin: 0;
+        }
+        .container {
+          background: rgba(0,0,0,0.3);
+          padding: 40px 30px;
+          border-radius: 16px;
+          box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+          text-align: center;
+        }
+        h1 {
+          font-size: 2.2em;
+          margin-bottom: 10px;
+        }
+        p {
+          font-size: 1.2em;
+        }
+        .close-btn {
+          margin-top: 25px;
+          padding: 10px 24px;
+          background: #43cea2;
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          font-size: 1em;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .close-btn:hover {
+          background: #185a9d;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>✅ Authentication Successful!</h1>
+        <p>You can now close this window and return to the app.</p>
+        <button class="close-btn" onclick="window.close()">Close</button>
+      </div>
+    </body>
+  </html>
+`);
           
           event.reply("auth-success", userProfile);
-          server.close();
+          authServer.close();
         } catch (error) {
           res.writeHead(400, { 'Content-Type': 'text/html' });
           res.end('<h1>Authentication failed. Please try again.</h1>');
           event.reply("auth-error", error.message);
-          server.close();
+          authServer.close();
         }
       }
     });
 
-    server.listen(3000, () => shell.openExternal(authUrl));
+    const { exec } = require('child_process');
+    const chromePath = '"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"'; // Default Chrome path
+    authServer.listen(3000, () => {
+      exec(`${chromePath} "${authUrl}"`, (error) => {
+        if (error) {
+          // Fallback to default browser if Chrome is not found
+          shell.openExternal(authUrl);
+        }
+      });
+    });
   } catch (error) {
     event.reply("auth-error", error.message);
   }
