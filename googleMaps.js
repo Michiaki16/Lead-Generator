@@ -52,32 +52,110 @@ async function scrapeEmailsParallel(businesses, event) {
   for (const batch of batches) {
     if (isCancelled) return;
 
-    const promises = batch.map(async (business, index) => {
+    const promises = batch.map(async (business) => {
       if (isCancelled) return;
 
+      let page = null;
       try {
-        if (business.bizWebsite) {
-          const page = await browserMaps.newPage();
-          await page.goto(business.bizWebsite, { 
+        // First try to get email from Google Maps URL if no website is available
+        let websiteUrl = business.bizWebsite;
+        
+        if (!websiteUrl && business.googleUrl) {
+          // Extract website from Google Maps page
+          page = await browserMaps.newPage();
+          await page.goto(business.googleUrl, { 
             waitUntil: "networkidle2", 
-            timeout: 10000 
+            timeout: 15000 
+          });
+          
+          // Look for website link on Google Maps page
+          const websiteLink = await page.evaluate(() => {
+            const websiteButton = document.querySelector('a[data-value="Website"]');
+            return websiteButton ? websiteButton.href : null;
+          });
+          
+          if (websiteLink) {
+            websiteUrl = websiteLink;
+            business.bizWebsite = websiteLink; // Update the business object
+          }
+          
+          await page.close();
+          page = null;
+        }
+
+        if (websiteUrl) {
+          page = await browserMaps.newPage();
+          
+          // Set user agent to avoid blocking
+          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+          
+          await page.goto(websiteUrl, { 
+            waitUntil: "domcontentloaded", 
+            timeout: 15000 
           });
 
-          const content = await page.content();
-          const emailMatch = content.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+          // Wait a bit for dynamic content to load
+          await page.waitForTimeout(2000);
 
-          if (emailMatch) {
-            business.email = emailMatch[0];
-          } else {
-            business.email = "No info";
-          }
+          // Enhanced email extraction
+          const emailData = await page.evaluate(() => {
+            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+            const text = document.body.innerText;
+            const html = document.body.innerHTML;
+            
+            // Find emails in text content
+            const textEmails = text.match(emailRegex) || [];
+            
+            // Find emails in HTML (including mailto links)
+            const mailtoLinks = Array.from(document.querySelectorAll('a[href*="mailto:"]'))
+              .map(link => link.href.replace('mailto:', '').split('?')[0]);
+            
+            // Find emails in HTML content
+            const htmlEmails = html.match(emailRegex) || [];
+            
+            // Combine and deduplicate emails
+            const allEmails = [...new Set([...textEmails, ...mailtoLinks, ...htmlEmails])];
+            
+            // Filter out common non-business emails and prioritize contact/info emails
+            const filteredEmails = allEmails.filter(email => {
+              const lowerEmail = email.toLowerCase();
+              return !lowerEmail.includes('noreply') && 
+                     !lowerEmail.includes('no-reply') &&
+                     !lowerEmail.includes('donotreply') &&
+                     !lowerEmail.includes('example.com') &&
+                     email.length < 50; // Avoid very long emails which might be false positives
+            });
+            
+            // Prioritize business-relevant emails
+            const priorityEmails = filteredEmails.filter(email => {
+              const lowerEmail = email.toLowerCase();
+              return lowerEmail.includes('info') || 
+                     lowerEmail.includes('contact') || 
+                     lowerEmail.includes('hello') ||
+                     lowerEmail.includes('admin') ||
+                     lowerEmail.includes('support');
+            });
+            
+            return priorityEmails.length > 0 ? priorityEmails[0] : (filteredEmails.length > 0 ? filteredEmails[0] : null);
+          });
 
+          business.email = emailData || "No info";
           await page.close();
+          page = null;
         } else {
           business.email = "No info";
         }
       } catch (error) {
+        console.error(`Error scraping email for ${business.storeName}:`, error.message);
         business.email = "No info";
+        
+        if (page) {
+          try {
+            await page.close();
+          } catch (closeError) {
+            console.error("Error closing page:", closeError.message);
+          }
+        }
       }
 
       processedCount++;
@@ -90,8 +168,8 @@ async function scrapeEmailsParallel(businesses, event) {
 
     await Promise.all(promises);
 
-    // Small delay between batches
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Delay between batches to avoid overwhelming servers
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 }
 
@@ -131,22 +209,33 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
     $("a[href*='/maps/place/']").each((i, el) => {
       const parent = $(el).closest("div");
       const url = $(el).attr("href");
-      const website = parent.find('a[data-value="Website"]').attr("href");
+      
+      // More comprehensive website extraction
+      let website = parent.find('a[data-value="Website"]').attr("href");
+      if (!website) {
+        // Look for other potential website links
+        website = parent.find('a[href^="http"]:not([href*="google.com"]):not([href*="maps"]):not([href*="goo.gl"])').first().attr("href");
+      }
+      
       const storeName = parent.find("div.fontHeadlineSmall").text();
       const address = parent.find("div.fontBodyMedium").first().text().trim();
 
       let rawText = parent.text();
-      let phoneMatch = rawText.match(/\(?0\d{1,4}\)?[\s-]?\d{3,4}[\s-]?\d{4}|\+63\s?\d{2,3}[\s-]?\d{3}[\s-]?\d{4}/g);
+      // Enhanced phone number regex to catch more formats
+      let phoneMatch = rawText.match(/(\+?\d{1,4}[-.\s]?)?\(?\d{3,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}|\+63\s?\d{2,3}[\s-]?\d{3}[\s-]?\d{4}|\(\d{3}\)\s?\d{3}-\d{4}/g);
       let phone = phoneMatch ? phoneMatch.join(", ") : "No information";
 
-      businesses.push({
-        storeName: storeName || "N/A",
-        address: address || "Not found",
-        phone: phone,
-        email: "Fetching...",
-        googleUrl: url || null,
-        bizWebsite: website || null,
-      });
+      // Only add businesses with valid names
+      if (storeName && storeName.trim().length > 0) {
+        businesses.push({
+          storeName: storeName.trim(),
+          address: address || "Not found",
+          phone: phone,
+          email: "Fetching...",
+          googleUrl: url ? `https://www.google.com${url}` : null,
+          bizWebsite: website || null,
+        });
+      }
     });
 
     if (isCancelled) {
