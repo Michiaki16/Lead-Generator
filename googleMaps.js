@@ -8,14 +8,23 @@ const path = require("path");
 
 puppeteerExtra.use(stealthPlugin());
 
+let browserMaps;
+let isCancelled = false;
+
+async function cancelScraping() {
+  isCancelled = true;
+  if (browserMaps) {
+    await browserMaps.close();
+  }
+}
+
 async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
+  isCancelled = false;
   try {
     console.log("Launching Google Maps Puppeteer...");
-    const browserMaps = await puppeteerExtra.launch({
+    browserMaps = await puppeteerExtra.launch({
       headless: "new",
-      executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
 
     const page = await browserMaps.newPage();
@@ -25,7 +34,17 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
       waitUntil: "networkidle2",
     });
 
+    if (isCancelled) {
+      await browserMaps.close();
+      return;
+    }
+
     await autoScroll(page);
+
+    if (isCancelled) {
+      await browserMaps.close();
+      return;
+    }
 
     const html = await page.content();
     const $ = cheerio.load(html);
@@ -53,12 +72,22 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
       });
     });
 
+    if (isCancelled) {
+      await browserMaps.close();
+      return;
+    }
+
     console.log(`Found ${businesses.length} businesses. Scraping websites for emails...`);
     event.reply("scraper-status", `Found ${businesses.length} businesses. Estimating time...`);
 
     const estimatedTime = estimateScrapingTime(businesses.length);
     console.log(`Estimated time required: ${estimatedTime} minutes`);
     event.reply("scraper-status", `Estimated time required: ${estimatedTime} minutes`);
+
+    if (isCancelled) {
+      await browserMaps.close();
+      return;
+    }
 
     await scrapeEmailsParallel(businesses, event);
 
@@ -144,10 +173,11 @@ async function autoScroll(page) {
 }
 
 async function scrapeEmailsParallel(businesses, event) {
+  if (isCancelled) return;
+  
   const browser = await puppeteerExtra.launch({
     headless: "new",
-    executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
   });
 
   const batchSize = 5;
@@ -158,10 +188,16 @@ async function scrapeEmailsParallel(businesses, event) {
   }
 
   for (const [index, chunk] of businessChunks.entries()) {
+    if (isCancelled) {
+      await browser.close();
+      return;
+    }
+    
     console.log(`Processing batch ${index + 1} of ${businessChunks.length}...`);
 
     await Promise.all(
       chunk.map(async (biz) => {
+        if (isCancelled) return;
         if (!biz.bizWebsite) {
           biz.email = "No information";
           return;
@@ -198,4 +234,4 @@ async function scrapeEmailsParallel(businesses, event) {
   await browser.close();
 }
 
-module.exports = { searchGoogleMaps, saveToExcel };
+module.exports = { searchGoogleMaps, saveToExcel, cancelScraping };

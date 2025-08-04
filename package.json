@@ -17,6 +17,7 @@
     "electron": "^35.0.2",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
+    "googleapis": "^154.1.0",
     "puppeteer": "^24.4.0",
     "puppeteer-core": "^24.15.0",
     "puppeteer-extra": "^3.3.6",

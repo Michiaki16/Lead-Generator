@@ -1,10 +1,13 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
-const { searchGoogleMaps } = require("./googleMaps"); 
+const { searchGoogleMaps, cancelScraping } = require("./googleMaps"); 
 const fs = require("fs");
 const xlsx = require("xlsx");
+const { google } = require('googleapis');
 
 let mainWindow;
+let oauth2Client;
+let scrapingProcess = null;
 
 app.whenReady().then(() => {
   mainWindow = new BrowserWindow({
@@ -24,9 +27,108 @@ app.whenReady().then(() => {
 
 ipcMain.on("run-scraper", async (event, query) => {
   try {
-    await searchGoogleMaps(query, event);
+    scrapingProcess = searchGoogleMaps(query, event);
+    await scrapingProcess;
   } catch (error) {
     event.reply("scraper-status", `❌ Error: ${error.message}`);
+  }
+});
+
+// Cancel scraper
+ipcMain.on("cancel-scraper", async (event) => {
+  try {
+    if (scrapingProcess) {
+      await cancelScraping();
+      scrapingProcess = null;
+      event.reply("scraper-status", "❌ Scraping cancelled by user");
+    }
+  } catch (error) {
+    console.error("Error cancelling scraper:", error);
+  }
+});
+
+// Google OAuth setup
+ipcMain.on("google-auth", async (event) => {
+  try {
+    // Initialize OAuth2 client
+    oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      'http://localhost:3000/oauth2callback'
+    );
+
+    const scopes = [
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/userinfo.profile',
+      'https://www.googleapis.com/auth/userinfo.email'
+    ];
+
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: scopes,
+    });
+
+    // Open auth URL in browser
+    require('electron').shell.openExternal(authUrl);
+  } catch (error) {
+    event.reply("auth-error", error.message);
+  }
+});
+
+// Send emails
+ipcMain.on("send-emails", async (event, { emailData, template }) => {
+  try {
+    if (!oauth2Client) {
+      event.reply("email-status", "❌ Please authenticate with Google first");
+      return;
+    }
+
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+    let sentCount = 0;
+    let totalEmails = emailData.length;
+
+    for (const data of emailData) {
+      if (data.email && data.email !== "No info") {
+        try {
+          // Replace template variables
+          let emailContent = template
+            .replace(/{companyName}/g, data.companyName)
+            .replace(/{email}/g, data.email)
+            .replace(/{phone}/g, data.phone)
+            .replace(/{address}/g, data.address)
+            .replace(/{website}/g, data.website);
+
+          const emailLines = [
+            `To: ${data.email}`,
+            `Subject: Business Inquiry for ${data.companyName}`,
+            '',
+            emailContent
+          ];
+
+          const email = emailLines.join('\n');
+          const encodedEmail = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+
+          await gmail.users.messages.send({
+            userId: 'me',
+            requestBody: {
+              raw: encodedEmail,
+            },
+          });
+
+          sentCount++;
+          event.reply("email-progress", { sent: sentCount, total: totalEmails });
+          
+          // Add delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (emailError) {
+          console.error(`Failed to send email to ${data.email}:`, emailError);
+        }
+      }
+    }
+
+    event.reply("email-status", `✅ Successfully sent ${sentCount} emails out of ${totalEmails}`);
+  } catch (error) {
+    event.reply("email-status", `❌ Error sending emails: ${error.message}`);
   }
 });
 

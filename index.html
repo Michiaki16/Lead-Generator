@@ -1,10 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lead Generator 5000 Unit Manager</title>
-    <script defer src="renderer.js"></script> <!-- External JS file -->
+    <title>ProLeadScrapeMaker</title>
+    <script defer src="renderer.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
     <style>
@@ -20,44 +21,311 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
             overflow: hidden;
             position: relative;
-            padding-top: 50px;
             
-            /* Background Image */
             background-image: url("src/img/mamamo3.png");
             background-repeat: no-repeat;
-            background-size: cover; /* Ensures full coverage */
-            background-position: center; /* Centers the image */
-            background-attachment: fixed; /* Keeps background static while scrolling */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
             color: white;
         }
 
-        /* Live animated gold background */
-        .background-animation {
-            position: absolute;
+        /* Top Header */
+        .top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            border-bottom: 2px solid gold;
+        }
+
+        .cancel-all-btn {
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .cancel-all-btn:hover {
+            background-color: #cc3333;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .profile-pic {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: gold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: black;
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .user-name {
+            font-weight: bold;
+            color: white;
+        }
+
+        .user-email {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .logout-btn {
+            background-color: transparent;
+            border: 1px solid gold;
+            color: gold;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .logout-btn:hover {
+            background-color: gold;
+            color: black;
+        }
+
+        /* Main Search Container */
+        .search-container {
+            width: 90%;
+            max-width: 800px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            margin: 20px auto;
+            position: relative;
+            z-index: 10;
+        }
+
+        .main-search-bar {
             width: 100%;
-            height: 100%;
+            max-width: 600px;
+            display: flex;
+            align-items: center;
+            border: 2px solid #FFD700;
+            border-radius: 50px;
+            padding: 10px 20px;
+            background-color: black;
+            box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .main-search-bar input {
+            flex: 1;
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: 18px;
+            color: white;
+            padding-right: 40px;
+        }
+
+        .main-search-bar input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            font-size: 20px;
+            color: gold;
+            cursor: pointer;
+        }
+
+        /* Company Search Section */
+        .company-search-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .company-search-input {
+            padding: 8px 15px;
+            border: 2px solid gold;
+            border-radius: 5px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            font-size: 14px;
+        }
+
+        .company-search-input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .remove-selected-btn {
+            background-color: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .remove-selected-btn:hover {
+            background-color: #ff5252;
+        }
+
+        .status-message {
+            color: #4CAF50;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        /* Table Container */
+        .table-container {
+            width: 90%;
+            max-width: 90%;
+            height: 60%;
+            overflow-y: auto;
+            overflow-x: auto;
+            border: 2px solid gold;
+            background-color: rgba(0, 0, 0, 0.8);
+            position: relative;
+            z-index: 10;
+            margin: 0 auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: transparent;
+        }
+
+        th, td {
+            border: 1px solid gold;
+            padding: 10px;
+            text-align: left;
+            color: white;
+        }
+
+        th {
+            background-color: rgba(255, 215, 0, 0.2);
+            color: white;
+            font-weight: bold;
+            border-bottom: 2px solid gold;
+        }
+
+        .checkbox-cell {
+            width: 40px;
+            text-align: center;
+        }
+
+        .row-checkbox {
+            transform: scale(1.2);
+        }
+
+        /* Bottom Action Buttons */
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            border-top: 2px solid gold;
+        }
+
+        .action-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .download-btn:hover {
+            background-color: #45a049;
+        }
+
+        .send-emails-btn {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        .send-emails-btn:hover {
+            background-color: #1976D2;
+        }
+
+        .send-emails-btn:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+
+        .import-btn {
+            background-color: #FF9800;
+            color: white;
+        }
+
+        .import-btn:hover {
+            background-color: #F57C00;
+        }
+
+        .clear-btn {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .clear-btn:hover {
+            background-color: #d32f2f;
+        }
+
+        .template-btn {
+            background-color: #9C27B0;
+            color: white;
+        }
+
+        .template-btn:hover {
+            background-color: #7B1FA2;
+        }
+
+        /* Gold Snow Canvas */
+        canvas {
+            position: absolute;
             top: 0;
             left: 0;
-            background: radial-gradient(circle, rgba(255, 215, 0, 0.2) 10%, transparent 70%);
-            animation: glowing 5s infinite alternate;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 1;
         }
 
-        @keyframes glowing {
-            0% { filter: blur(5px); opacity: 0.6; }
-            100% { filter: blur(10px); opacity: 1; }
-        }
-
+        /* Border Frame */
         .border-frame {
             position: absolute;
             top: 2%;
             left: 2%;
             width: 96%;
             height: 96%;
-           
             border: 3px solid gold;
             pointer-events: none;
             box-shadow: 
@@ -66,6 +334,7 @@
                 0 0 30px rgba(255, 215, 0, 0.5);
             animation: glow 1.5s infinite alternate;
         }
+
         @keyframes glow {
             0% {
                 box-shadow: 
@@ -81,128 +350,125 @@
             }
         }
 
-        .search-container {
-            width: 90%;
-            max-width: 800px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            margin-bottom: 20px;
-            position: relative;
-            z-index: 10;
-        }
-
-        .search-bar {
-            width: 100%;
-            max-width: 600px;
-            display: flex;
-            align-items: center;
-            border: 2px solid #FFD700;
-            border-radius: 50px;
-            padding: 10px 20px;
-            background-color: black;
-            box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
-            position: relative;
-        }
-
-        .search-bar input {
-            flex: 1;
-            border: none;
-            outline: none;
-            background: transparent;
-            font-size: 18px;
-            color: white;
-            padding-right: 40px;
-        }
-
-        .search-bar input::placeholder {
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        .search-icon {
-            position: absolute;
-            right: 15px;
-            font-size: 20px;
-            color: gold;
-            cursor: pointer;
-        }
-
-        .table-container {
-            width: 90%;
-            max-width: 90%;
-            height: 70%;
-            overflow-y: auto;
-            overflow-x: auto;
-            border: 2px solid gold;
-            background-color: rgba(0, 0, 0, 0.6); 
-            position: relative;
-            z-index: 10;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            background: transparent;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        th, td {
-            border: 1px solid gold;
-            padding: 10px;
-            text-align: left;
-            color: white;
-        }
-
-        th {
-            background-color: transparent;
-            color: white;
-            font-weight: bold;
-            border-bottom: 2px solid gold;
-        }
-
-        #downloadBtn {
-            margin-top: 10px;
-            padding: 10px 20px;
-            border: none;
-            background: gold;
-            color: black;
-            font-size: 16px;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-                /* Gold Snow Canvas */
-        canvas {
-            position: absolute;
-            top: 0;
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
             left: 0;
-            width: 100vw;
-            height: 100vh;
-            pointer-events: none;
-            z-index: 1;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
         }
 
+        .modal-content {
+            background-color: #333;
+            margin: 10% auto;
+            padding: 20px;
+            border: 2px solid gold;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+            color: white;
+        }
+
+        .close {
+            color: gold;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: white;
+        }
+
+        .modal textarea {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            border: 1px solid gold;
+            border-radius: 5px;
+            background-color: #222;
+            color: white;
+            font-family: Arial, sans-serif;
+            resize: vertical;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .modal-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .save-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .cancel-btn {
+            background-color: #666;
+            color: white;
+        }
+
+        .hidden-file-input {
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <canvas id="goldCanvas"></canvas> 
-
+    <canvas id="goldCanvas"></canvas>
     <div class="border-frame"></div>
 
+    <!-- Top Header -->
+    <div class="top-header">
+        <button class="cancel-all-btn" onclick="cancelAllProcesses()">Cancel All</button>
+        
+        <div class="user-profile">
+            <div class="profile-pic">MA</div>
+            <div class="user-info">
+                <div class="user-name" id="userName">Miko Andre San Miguel</div>
+                <div class="user-email" id="userEmail">miko@example.com</div>
+            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <!-- Main Search Container -->
     <div class="search-container">
-        <div class="search-bar">
+        <div class="main-search-bar">
             <input type="text" id="searchQuery" placeholder="Search..." />
             <span class="search-icon" onclick="runScraper()">🔍</span>
         </div>
+        
+        <div class="company-search-section">
+            <input type="text" class="company-search-input" id="companySearch" placeholder="Search company...">
+            <button class="remove-selected-btn" onclick="removeSelected()">Remove Selected</button>
+        </div>
+        
+        <div class="status-message" id="statusMessage">✅ Data imported successfully!</div>
         <p id="status" style="color: white;"></p>
     </div>
 
+    <!-- Table Container -->
     <div class="table-container">
         <table id="resultsTable">
             <thead>
                 <tr>
+                    <th class="checkbox-cell">
+                        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                    </th>
                     <th>Company Name</th>
                     <th>Phone Number</th>
                     <th>Email Address</th>
@@ -214,76 +480,326 @@
         </table>
     </div>
 
-    <button id="downloadBtn" onclick="downloadData()">Download Data</button>
+    <!-- Bottom Action Buttons -->
+    <div class="action-buttons">
+        <button class="action-btn download-btn" onclick="downloadData()">📥 Download Data</button>
+        <button class="action-btn send-emails-btn" id="sendEmailsBtn" onclick="sendEmails()" disabled>📧 Send Emails</button>
+        <button class="action-btn import-btn" onclick="importFile()">📂 Import File</button>
+        <button class="action-btn clear-btn" onclick="clearTable()">🗑️ Clear Table</button>
+        <button class="action-btn template-btn" onclick="openEmailTemplateModal()">✉️ Save Email Template</button>
+    </div>
+
+    <!-- Hidden File Input -->
+    <input type="file" id="fileInput" class="hidden-file-input" accept=".xlsx,.xls,.csv" onchange="handleFileImport(event)">
+
+    <!-- Email Template Modal -->
+    <div id="emailTemplateModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEmailTemplateModal()">&times;</span>
+            <h2>Email Template</h2>
+            <textarea id="emailTemplateText" placeholder="Enter your email template here...
+
+Available variables:
+{companyName} - Company name
+{email} - Email address
+{phone} - Phone number
+{address} - Company address
+{website} - Business website
+
+Example:
+Dear {companyName},
+
+We hope this message finds you well...
+
+Best regards,
+Your Name"></textarea>
+            <div class="modal-buttons">
+                <button class="modal-btn cancel-btn" onclick="closeEmailTemplateModal()">Cancel</button>
+                <button class="modal-btn save-btn" onclick="saveEmailTemplate()">Save Template</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         const { ipcRenderer } = require("electron");
         const ExcelJS = require("exceljs");
+        
         let startTime;
-let processedCount = 0;
-let totalBusinesses = 0;
-let estimatedTime = "Calculating...";
+        let processedCount = 0;
+        let totalBusinesses = 0;
+        let estimatedTime = "Calculating...";
+        let scrapingInProgress = false;
+        let emailTemplate = "";
+        let isLoggedIn = false;
 
-function runScraper() {
-    const query = document.getElementById("searchQuery").value.trim();
-    if (!query) {
-        document.getElementById("status").innerText = "⚠️ Please enter a search term!";
-        return;
-    }
+        // Initialize app
+        function initializeApp() {
+            updateSendEmailsButton();
+            loadEmailTemplate();
+        }
 
-    document.getElementById("status").innerText = "⏳ Running scraper... Estimating time...";
-    
-    startTime = Date.now(); // Mark start time
-    processedCount = 0;
-    estimatedTime = "Calculating...";
+        function updateSendEmailsButton() {
+            const sendBtn = document.getElementById('sendEmailsBtn');
+            const tableRows = document.querySelectorAll("#resultsTable tbody tr");
+            const hasData = tableRows.length > 0;
+            const hasTemplate = emailTemplate.length > 0;
+            
+            sendBtn.disabled = !isLoggedIn || !hasData || !hasTemplate;
+        }
 
-    ipcRenderer.send("run-scraper", query);
-}
+        function runScraper() {
+            const query = document.getElementById("searchQuery").value.trim();
+            if (!query) {
+                document.getElementById("status").innerText = "⚠️ Please enter a search term!";
+                return;
+            }
 
-ipcRenderer.on("scraper-status", (event, message) => {
-    document.getElementById("status").innerText = `⏳ ${message}`;
-});
+            scrapingInProgress = true;
+            document.getElementById("status").innerText = "⏳ Running scraper... Estimating time...";
+            
+            startTime = Date.now();
+            processedCount = 0;
+            estimatedTime = "Calculating...";
 
-ipcRenderer.on("estimated-time", (event, estimatedTimeMinutes) => {
-    estimatedTime = `${estimatedTimeMinutes} min remaining`;
-    document.getElementById("status").innerText = `⏳ Scraping... ${estimatedTime}`;
-});
+            ipcRenderer.send("run-scraper", query);
+        }
 
-ipcRenderer.on("scraper-progress", (event, progress) => {
-    processedCount++;
-    totalBusinesses = progress.total; // Update total count dynamically
+        function cancelAllProcesses() {
+            if (scrapingInProgress) {
+                ipcRenderer.send("cancel-scraper");
+                scrapingInProgress = false;
+                document.getElementById("status").innerText = "❌ Scraping cancelled by user";
+            }
+        }
 
-    let elapsedTime = (Date.now() - startTime) / 1000; // Time in seconds
-    let avgTimePerBusiness = elapsedTime / processedCount; // Average time per business
-    let timeRemaining = avgTimePerBusiness * (totalBusinesses - processedCount);
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+            
+            rowCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+        }
 
-    estimatedTime = timeRemaining > 60
-        ? `${Math.ceil(timeRemaining / 60)} min remaining`
-        : `${Math.ceil(timeRemaining)} sec remaining`;
+        function removeSelected() {
+            const rowCheckboxes = document.querySelectorAll('.row-checkbox:checked');
+            rowCheckboxes.forEach(checkbox => {
+                checkbox.closest('tr').remove();
+            });
+            
+            // Reset select all checkbox
+            document.getElementById('selectAll').checked = false;
+            updateSendEmailsButton();
+        }
 
-    document.getElementById("status").innerText = `⏳ Scraping... ${processedCount}/${totalBusinesses} completed. ${estimatedTime}`;
-});
+        function sendEmails() {
+            if (!isLoggedIn) {
+                alert("Please log in with your Google account first");
+                return;
+            }
+            
+            if (!emailTemplate) {
+                alert("Please create an email template first");
+                return;
+            }
+            
+            const rows = document.querySelectorAll("#resultsTable tbody tr");
+            if (rows.length === 0) {
+                alert("No data available to send emails");
+                return;
+            }
+            
+            // Get selected rows or all rows if none selected
+            const selectedRows = document.querySelectorAll('.row-checkbox:checked');
+            const targetRows = selectedRows.length > 0 ? selectedRows : document.querySelectorAll('.row-checkbox');
+            
+            const emailData = [];
+            targetRows.forEach(checkbox => {
+                const row = checkbox.closest('tr');
+                const cells = row.querySelectorAll('td');
+                emailData.push({
+                    companyName: cells[1].textContent,
+                    phone: cells[2].textContent,
+                    email: cells[3].textContent,
+                    address: cells[4].textContent,
+                    website: cells[5].textContent
+                });
+            });
+            
+            ipcRenderer.send("send-emails", { emailData, template: emailTemplate });
+        }
 
-ipcRenderer.on("scraper-results", (event, data) => {
-    const tableBody = document.querySelector("#resultsTable tbody");
-    tableBody.innerHTML = "";
+        function importFile() {
+            document.getElementById('fileInput').click();
+        }
 
-    data.forEach(business => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${business.storeName || "N/A"}</td>
-            <td>${business.phone || "No info"}</td>
-            <td>${business.email || "No info"}</td>
-            <td>${business.address || "No info"}</td>
-            <td>${business.bizWebsite ? `<a href='${business.bizWebsite}' target='_blank'>Website</a>` : "No info"}</td>
-        `;
-        tableBody.appendChild(row);
-    });
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    populateTableFromImport(jsonData);
+                    document.getElementById('statusMessage').textContent = "✅ Data imported successfully!";
+                    updateSendEmailsButton();
+                } catch (error) {
+                    alert("Error importing file: " + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
 
-    document.getElementById("status").innerText = "✅ Extraction complete!";
-});
+        function populateTableFromImport(data) {
+            const tableBody = document.querySelector("#resultsTable tbody");
+            tableBody.innerHTML = "";
 
+            data.forEach(row => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td class="checkbox-cell"><input type="checkbox" class="row-checkbox"></td>
+                    <td>${row['Company Name'] || row.storeName || "N/A"}</td>
+                    <td>${row['Phone Number'] || row.phone || "No info"}</td>
+                    <td>${row['Email Address'] || row.email || "No info"}</td>
+                    <td>${row['Company Address'] || row.address || "No info"}</td>
+                    <td>${row['Business Website'] || row.bizWebsite ? `<a href='${row['Business Website'] || row.bizWebsite}' target='_blank'>Website</a>` : "No info"}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
 
+        function clearTable() {
+            if (confirm("Are you sure you want to clear all table data?")) {
+                document.querySelector("#resultsTable tbody").innerHTML = "";
+                document.getElementById('selectAll').checked = false;
+                updateSendEmailsButton();
+            }
+        }
+
+        function openEmailTemplateModal() {
+            document.getElementById('emailTemplateModal').style.display = 'block';
+            document.getElementById('emailTemplateText').value = emailTemplate;
+        }
+
+        function closeEmailTemplateModal() {
+            document.getElementById('emailTemplateModal').style.display = 'none';
+        }
+
+        function saveEmailTemplate() {
+            emailTemplate = document.getElementById('emailTemplateText').value;
+            localStorage.setItem('emailTemplate', emailTemplate);
+            closeEmailTemplateModal();
+            updateSendEmailsButton();
+            alert("Email template saved successfully!");
+        }
+
+        function loadEmailTemplate() {
+            emailTemplate = localStorage.getItem('emailTemplate') || "";
+        }
+
+        function logout() {
+            isLoggedIn = false;
+            updateSendEmailsButton();
+            // Here you would implement actual logout logic
+            alert("Logged out successfully");
+        }
+
+        // IPC Event Listeners
+        ipcRenderer.on("scraper-status", (event, message) => {
+            document.getElementById("status").innerText = `⏳ ${message}`;
+        });
+
+        ipcRenderer.on("estimated-time", (event, estimatedTimeMinutes) => {
+            estimatedTime = `${estimatedTimeMinutes} min remaining`;
+            document.getElementById("status").innerText = `⏳ Scraping... ${estimatedTime}`;
+        });
+
+        ipcRenderer.on("scraper-progress", (event, progress) => {
+            processedCount++;
+            totalBusinesses = progress.total;
+
+            let elapsedTime = (Date.now() - startTime) / 1000;
+            let avgTimePerBusiness = elapsedTime / processedCount;
+            let timeRemaining = avgTimePerBusiness * (totalBusinesses - processedCount);
+
+            estimatedTime = timeRemaining > 60
+                ? `${Math.ceil(timeRemaining / 60)} min remaining`
+                : `${Math.ceil(timeRemaining)} sec remaining`;
+
+            document.getElementById("status").innerText = `⏳ Scraping... ${processedCount}/${totalBusinesses} completed. ${estimatedTime}`;
+        });
+
+        ipcRenderer.on("scraper-results", (event, data) => {
+            const tableBody = document.querySelector("#resultsTable tbody");
+            tableBody.innerHTML = "";
+
+            data.forEach(business => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td class="checkbox-cell"><input type="checkbox" class="row-checkbox"></td>
+                    <td>${business.storeName || "N/A"}</td>
+                    <td>${business.phone || "No info"}</td>
+                    <td>${business.email || "No info"}</td>
+                    <td>${business.address || "No info"}</td>
+                    <td>${business.bizWebsite ? `<a href='${business.bizWebsite}' target='_blank'>Website</a>` : "No info"}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            scrapingInProgress = false;
+            document.getElementById("status").innerText = "✅ Extraction complete!";
+            updateSendEmailsButton();
+        });
+
+        function downloadData() {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet("Scraped Data");
+
+            worksheet.columns = [
+                { header: "Company Name", key: "company", width: 30 },
+                { header: "Phone Number", key: "phone", width: 20 },
+                { header: "Email Address", key: "email", width: 30 },
+                { header: "Company Address", key: "address", width: 40 },
+                { header: "Business Website", key: "website", width: 30 }
+            ];
+
+            const rows = document.querySelectorAll("#resultsTable tbody tr");
+
+            rows.forEach(row => {
+                const columns = row.querySelectorAll("td");
+                worksheet.addRow({
+                    company: columns[1].innerText.trim(),
+                    phone: columns[2].innerText.trim(),
+                    email: columns[3].innerText.trim(),
+                    address: columns[4].innerText.trim(),
+                    website: columns[5].innerText.trim()
+                });
+            });
+
+            worksheet.columns.forEach(column => {
+                let maxLength = 0;
+                column.eachCell({ includeEmpty: true }, cell => {
+                    const cellValue = cell.value ? cell.value.toString().length : 10;
+                    if (cellValue > maxLength) maxLength = cellValue;
+                });
+                column.width = maxLength + 5;
+            });
+
+            workbook.xlsx.writeBuffer().then(buffer => {
+                const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                saveAs(blob, "ScrapedData.xlsx");
+            }).catch(err => {
+                console.error("Error generating Excel file:", err);
+            });
+        }
+
+        // Gold particles animation
         const canvas = document.getElementById('goldCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -338,51 +854,8 @@ ipcRenderer.on("scraper-results", (event, data) => {
         initParticles();
         animateParticles();
 
-        function downloadData() {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Scraped Data");
-
-    // Define headers with styling
-    worksheet.columns = [
-        { header: "Company Name", key: "company", width: 30 },
-        { header: "Phone Number", key: "phone", width: 20 },
-        { header: "Email Address", key: "email", width: 30 },
-        { header: "Company Address", key: "address", width: 40 },
-        { header: "Business Website", key: "website", width: 30 }
-    ];
-
-    // Get table data
-    const rows = document.querySelectorAll("#resultsTable tbody tr");
-
-    rows.forEach(row => {
-        const columns = row.querySelectorAll("td");
-        worksheet.addRow({
-            company: columns[0].innerText.trim(),
-            phone: columns[1].innerText.trim(),
-            email: columns[2].innerText.trim(),
-            address: columns[3].innerText.trim(),
-            website: columns[4].innerText.trim()
-        });
-    });
-
-    // Auto-adjust column width based on content
-    worksheet.columns.forEach(column => {
-        let maxLength = 0;
-        column.eachCell({ includeEmpty: true }, cell => {
-            const cellValue = cell.value ? cell.value.toString().length : 10;
-            if (cellValue > maxLength) maxLength = cellValue;
-        });
-        column.width = maxLength + 5; // Add extra padding
-    });
-
-    // Save file as Excel
-    workbook.xlsx.writeBuffer().then(buffer => {
-        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        saveAs(blob, "ScrapedData.xlsx");
-    }).catch(err => {
-        console.error("Error generating Excel file:", err);
-    });
-}
+        // Initialize app when page loads
+        window.addEventListener('load', initializeApp);
     </script>
 </body>
 </html>
