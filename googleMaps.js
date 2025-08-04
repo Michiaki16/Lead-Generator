@@ -15,22 +15,78 @@ async function cancelScraping() {
 }
 
 async function autoScroll(page) {
+  console.log("Starting enhanced auto-scroll to load maximum results...");
+  
   await page.evaluate(async () => {
     await new Promise((resolve) => {
-      let totalHeight = 0;
-      const distance = 100;
-      const timer = setInterval(() => {
-        const scrollHeight = document.body.scrollHeight;
-        window.scrollBy(0, distance);
-        totalHeight += distance;
-
-        if (totalHeight >= scrollHeight) {
-          clearInterval(timer);
+      let lastHeight = 0;
+      let stagnantCount = 0;
+      let scrollAttempts = 0;
+      const maxScrollAttempts = 200; // Maximum scroll attempts
+      const maxStagnantCount = 10; // Stop if height doesn't change for 10 attempts
+      
+      const scroll = () => {
+        // Scroll the main results panel specifically
+        const resultsPanel = document.querySelector('[role="main"]') || 
+                           document.querySelector('.section-layout') ||
+                           document.querySelector('[data-value="Search results"]') ||
+                           document.body;
+        
+        if (resultsPanel) {
+          resultsPanel.scrollTop = resultsPanel.scrollHeight;
+        }
+        
+        // Also scroll the window
+        window.scrollTo(0, document.body.scrollHeight);
+        
+        // Try to click "Show more results" or similar buttons
+        const showMoreButtons = document.querySelectorAll('button[jsaction*="more"], button[aria-label*="more"], button[aria-label*="More"], .section-loading-more-results button');
+        showMoreButtons.forEach(button => {
+          if (button.offsetParent !== null) { // Check if button is visible
+            button.click();
+          }
+        });
+      };
+      
+      const checkProgress = () => {
+        const currentHeight = Math.max(
+          document.body.scrollHeight,
+          document.documentElement.scrollHeight,
+          document.body.offsetHeight,
+          document.documentElement.offsetHeight
+        );
+        
+        const businessCount = document.querySelectorAll("a[href*='/maps/place/']").length;
+        console.log(`Scroll attempt ${scrollAttempts}: Found ${businessCount} businesses, Page height: ${currentHeight}`);
+        
+        if (currentHeight === lastHeight) {
+          stagnantCount++;
+        } else {
+          stagnantCount = 0;
+          lastHeight = currentHeight;
+        }
+        
+        scrollAttempts++;
+        
+        // Continue scrolling if we haven't hit limits
+        if (scrollAttempts < maxScrollAttempts && stagnantCount < maxStagnantCount) {
+          scroll();
+          setTimeout(checkProgress, 500); // Increased delay to allow content to load
+        } else {
+          console.log(`Auto-scroll completed. Total attempts: ${scrollAttempts}, Final business count: ${businessCount}`);
           resolve();
         }
-      }, 100);
+      };
+      
+      // Start the scrolling process
+      scroll();
+      setTimeout(checkProgress, 500);
     });
   });
+  
+  // Additional wait for any final content to load
+  await page.waitForTimeout(2000);
+  console.log("Auto-scroll process completed");
 }
 
 function estimateScrapingTime(businessCount) {
@@ -194,12 +250,21 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
       return;
     }
 
+    event.reply("scraper-status", "Scrolling to load all available results...");
     await autoScroll(page);
 
     if (isCancelled) {
       await browserMaps.close();
       return;
     }
+    
+    // Get a count of businesses found after scrolling
+    const businessCount = await page.evaluate(() => {
+      return document.querySelectorAll("a[href*='/maps/place/']").length;
+    });
+    
+    console.log(`Scrolling completed. Found ${businessCount} potential businesses to extract.`);
+    event.reply("scraper-status", `Scrolling completed. Found ${businessCount} businesses. Extracting data...`);
 
     const html = await page.content();
     const $ = cheerio.load(html);
