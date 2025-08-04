@@ -435,13 +435,13 @@
     <div class="top-header">
         <button class="cancel-all-btn" onclick="cancelAllProcesses()">Cancel All</button>
         
-        <div class="user-profile">
-            <div class="profile-pic">MA</div>
+        <div class="user-profile" id="userProfile" style="display: none;">
+            <div class="profile-pic" id="profilePic">?</div>
             <div class="user-info">
-                <div class="user-name" id="userName">Miko Andre San Miguel</div>
-                <div class="user-email" id="userEmail">miko@example.com</div>
+                <div class="user-name" id="userName">Not logged in</div>
+                <div class="user-email" id="userEmail">Please authenticate</div>
             </div>
-            <button class="logout-btn" onclick="logout()">Logout</button>
+            <button class="logout-btn" id="authBtn" onclick="authenticateGoogle()">Login</button>
         </div>
     </div>
 
@@ -529,13 +529,16 @@ Your Name"></textarea>
         let totalBusinesses = 0;
         let estimatedTime = "Calculating...";
         let scrapingInProgress = false;
+        let emailSendingInProgress = false;
         let emailTemplate = "";
         let isLoggedIn = false;
+        let userProfile = null;
 
         // Initialize app
         function initializeApp() {
             updateSendEmailsButton();
             loadEmailTemplate();
+            updateAuthUI();
         }
 
         function updateSendEmailsButton() {
@@ -570,6 +573,42 @@ Your Name"></textarea>
                 scrapingInProgress = false;
                 document.getElementById("status").innerText = "❌ Scraping cancelled by user";
             }
+            if (emailSendingInProgress) {
+                ipcRenderer.send("cancel-emails");
+                emailSendingInProgress = false;
+            }
+        }
+
+        function authenticateGoogle() {
+            if (isLoggedIn) {
+                logout();
+            } else {
+                ipcRenderer.send("google-auth");
+            }
+        }
+
+        function updateAuthUI() {
+            const authBtn = document.getElementById('authBtn');
+            const userProfile = document.getElementById('userProfile');
+            const profilePic = document.getElementById('profilePic');
+            const userName = document.getElementById('userName');
+            const userEmail = document.getElementById('userEmail');
+
+            if (isLoggedIn && window.currentUser) {
+                userProfile.style.display = 'flex';
+                profilePic.textContent = window.currentUser.name ? window.currentUser.name.charAt(0).toUpperCase() : '?';
+                userName.textContent = window.currentUser.name || 'Unknown User';
+                userEmail.textContent = window.currentUser.email || 'No email';
+                authBtn.textContent = 'Logout';
+                authBtn.onclick = logout;
+            } else {
+                userProfile.style.display = 'flex';
+                profilePic.textContent = '?';
+                userName.textContent = 'Not logged in';
+                userEmail.textContent = 'Please authenticate';
+                authBtn.textContent = 'Login';
+                authBtn.onclick = authenticateGoogle;
+            }
         }
 
         function toggleSelectAll() {
@@ -598,7 +637,7 @@ Your Name"></textarea>
                 return;
             }
             
-            if (!emailTemplate) {
+            if (!emailTemplate.trim()) {
                 alert("Please create an email template first");
                 return;
             }
@@ -609,7 +648,6 @@ Your Name"></textarea>
                 return;
             }
             
-            // Get selected rows or all rows if none selected
             const selectedRows = document.querySelectorAll('.row-checkbox:checked');
             const targetRows = selectedRows.length > 0 ? selectedRows : document.querySelectorAll('.row-checkbox');
             
@@ -617,16 +655,29 @@ Your Name"></textarea>
             targetRows.forEach(checkbox => {
                 const row = checkbox.closest('tr');
                 const cells = row.querySelectorAll('td');
-                emailData.push({
-                    companyName: cells[1].textContent,
-                    phone: cells[2].textContent,
-                    email: cells[3].textContent,
-                    address: cells[4].textContent,
-                    website: cells[5].textContent
-                });
+                const email = cells[3].textContent.trim();
+                
+                if (email && email !== "No info" && email !== "Fetching...") {
+                    emailData.push({
+                        companyName: cells[1].textContent.trim(),
+                        phone: cells[2].textContent.trim(),
+                        email: email,
+                        address: cells[4].textContent.trim(),
+                        website: cells[5].textContent.trim().replace('Website', '')
+                    });
+                }
             });
-            
-            ipcRenderer.send("send-emails", { emailData, template: emailTemplate });
+
+            if (emailData.length === 0) {
+                alert("No valid email addresses found in selected rows");
+                return;
+            }
+
+            if (confirm(`Send emails to ${emailData.length} recipients?`)) {
+                emailSendingInProgress = true;
+                document.getElementById('sendEmailsBtn').disabled = true;
+                ipcRenderer.send("send-emails", { emailData, template: emailTemplate });
+            }
         }
 
         function importFile() {
@@ -705,9 +756,9 @@ Your Name"></textarea>
 
         function logout() {
             isLoggedIn = false;
+            window.currentUser = null;
             updateSendEmailsButton();
-            // Here you would implement actual logout logic
-            alert("Logged out successfully");
+            updateAuthUI();
         }
 
         // IPC Event Listeners
@@ -754,6 +805,34 @@ Your Name"></textarea>
 
             scrapingInProgress = false;
             document.getElementById("status").innerText = "✅ Extraction complete!";
+            updateSendEmailsButton();
+        });
+
+        // Authentication event listeners
+        ipcRenderer.on("auth-success", (event, userInfo) => {
+            isLoggedIn = true;
+            window.currentUser = userInfo;
+            updateSendEmailsButton();
+            updateAuthUI();
+            document.getElementById("status").innerText = `✅ Logged in as ${userInfo.name}`;
+        });
+
+        ipcRenderer.on("auth-error", (event, error) => {
+            isLoggedIn = false;
+            window.currentUser = null;
+            updateAuthUI();
+            document.getElementById("status").innerText = `❌ Authentication failed: ${error}`;
+        });
+
+        // Email sending event listeners
+        ipcRenderer.on("email-progress", (event, progress) => {
+            document.getElementById("status").innerText = `📧 Sending emails... ${progress.sent}/${progress.total} (${progress.current})`;
+        });
+
+        ipcRenderer.on("email-status", (event, message) => {
+            document.getElementById("status").innerText = message;
+            emailSendingInProgress = false;
+            document.getElementById('sendEmailsBtn').disabled = false;
             updateSendEmailsButton();
         });
 
