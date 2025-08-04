@@ -1,12 +1,8 @@
-const cheerio = require("cheerio");
 const puppeteerExtra = require("puppeteer-extra");
-const stealthPlugin = require("puppeteer-extra-plugin-stealth");
-const puppeteer = require("puppeteer-core");
-const ExcelJS = require("exceljs");
-const dayjs = require("dayjs");
-const path = require("path");
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+const cheerio = require("cheerio");
 
-puppeteerExtra.use(stealthPlugin());
+puppeteerExtra.use(StealthPlugin());
 
 let browserMaps;
 let isCancelled = false;
@@ -15,6 +11,87 @@ async function cancelScraping() {
   isCancelled = true;
   if (browserMaps) {
     await browserMaps.close();
+  }
+}
+
+async function autoScroll(page) {
+  await page.evaluate(async () => {
+    await new Promise((resolve) => {
+      let totalHeight = 0;
+      const distance = 100;
+      const timer = setInterval(() => {
+        const scrollHeight = document.body.scrollHeight;
+        window.scrollBy(0, distance);
+        totalHeight += distance;
+
+        if (totalHeight >= scrollHeight) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 100);
+    });
+  });
+}
+
+function estimateScrapingTime(businessCount) {
+  const timePerBusiness = 2; // seconds per business
+  const totalMinutes = Math.ceil((businessCount * timePerBusiness) / 60);
+  return Math.max(1, totalMinutes);
+}
+
+async function scrapeEmailsParallel(businesses, event) {
+  const batchSize = 5;
+  const batches = [];
+
+  for (let i = 0; i < businesses.length; i += batchSize) {
+    batches.push(businesses.slice(i, i + batchSize));
+  }
+
+  let processedCount = 0;
+
+  for (const batch of batches) {
+    if (isCancelled) return;
+
+    const promises = batch.map(async (business, index) => {
+      if (isCancelled) return;
+
+      try {
+        if (business.bizWebsite) {
+          const page = await browserMaps.newPage();
+          await page.goto(business.bizWebsite, { 
+            waitUntil: "networkidle2", 
+            timeout: 10000 
+          });
+
+          const content = await page.content();
+          const emailMatch = content.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+
+          if (emailMatch) {
+            business.email = emailMatch[0];
+          } else {
+            business.email = "No info";
+          }
+
+          await page.close();
+        } else {
+          business.email = "No info";
+        }
+      } catch (error) {
+        business.email = "No info";
+      }
+
+      processedCount++;
+      event.reply("scraper-progress", { 
+        current: processedCount, 
+        total: businesses.length,
+        business: business.storeName 
+      });
+    });
+
+    await Promise.all(promises);
+
+    // Small delay between batches
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
 }
 
@@ -82,7 +159,7 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
 
     const estimatedTime = estimateScrapingTime(businesses.length);
     console.log(`Estimated time required: ${estimatedTime} minutes`);
-    event.reply("scraper-status", `Estimated time required: ${estimatedTime} minutes`);
+    event.reply("estimated-time", estimatedTime);
 
     if (isCancelled) {
       await browserMaps.close();
@@ -99,139 +176,13 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
   } catch (error) {
     console.error("Error in searchGoogleMaps:", error.message);
     event.reply("scraper-status", `Error: ${error.message}`);
-  }
-}
-
-function estimateScrapingTime(businessCount) {
-  const mapsScrapingTime = businessCount * 4;
-  const emailScrapingTime = Math.ceil((businessCount * 15) / 5);
-
-  const totalSeconds = mapsScrapingTime + emailScrapingTime;
-  return Math.ceil(totalSeconds / 60);
-}
-
-async function saveToExcel(businesses, event) {
-  try {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Leads");
-
-    worksheet.columns = [
-      { header: "Store Name", key: "storeName", width: 25 },
-      { header: "Address", key: "address", width: 30 },
-      { header: "Phone", key: "phone", width: 20 },
-      { header: "Email", key: "email", width: 30 },
-      { header: "Google Maps URL", key: "googleUrl", width: 50 },
-      { header: "Website", key: "bizWebsite", width: 50 },
-    ];
-
-    businesses.forEach((biz) => {
-      worksheet.addRow(biz);
-    });
-
-    const timestamp = dayjs().format("MM-DD-YYYY_hh-mm_A");
-    const filePath = path.join("C:\\Users\\Lyka Mae\\Downloads", `LeadsNgIna_${timestamp}.xlsx`);
-
-    await workbook.xlsx.writeFile(filePath);
-    console.log(`Excel file saved: ${filePath}`);
-
-    event.reply("download-status", `Data saved to ${filePath}`);
-  } catch (error) {
-    console.error("Error saving to Excel:", error.message);
-    event.reply("download-status", `Error saving data: ${error.message}`);
-  }
-}
-
-async function autoScroll(page) {
-  await page.evaluate(async () => {
-    const wrapper = document.querySelector('div[role="feed"]');
-
-    await new Promise((resolve) => {
-      let totalHeight = 0;
-      const distance = 1000;
-      const scrollDelay = 3000;
-
-      const timer = setInterval(async () => {
-        let scrollHeightBefore = wrapper.scrollHeight;
-        wrapper.scrollBy(0, distance);
-        totalHeight += distance;
-
-        if (totalHeight >= scrollHeightBefore) {
-          totalHeight = 0;
-          await new Promise((resolve) => setTimeout(resolve, scrollDelay));
-
-          let scrollHeightAfter = wrapper.scrollHeight;
-          if (scrollHeightAfter > scrollHeightBefore) {
-            return;
-          } else {
-            clearInterval(timer);
-            resolve();
-          }
-        }
-      }, 200);
-    });
-  });
-}
-
-async function scrapeEmailsParallel(businesses, event) {
-  if (isCancelled) return;
-  
-  const browser = await puppeteerExtra.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-  });
-
-  const batchSize = 5;
-  const businessChunks = [];
-
-  for (let i = 0; i < businesses.length; i += batchSize) {
-    businessChunks.push(businesses.slice(i, i + batchSize));
-  }
-
-  for (const [index, chunk] of businessChunks.entries()) {
-    if (isCancelled) {
-      await browser.close();
-      return;
-    }
-    
-    console.log(`Processing batch ${index + 1} of ${businessChunks.length}...`);
-
-    await Promise.all(
-      chunk.map(async (biz) => {
-        if (isCancelled) return;
-        if (!biz.bizWebsite) {
-          biz.email = "No information";
-          return;
-        }
-
-        try {
-          const page = await browser.newPage();
-          await page.goto(biz.bizWebsite, {
-            waitUntil: "domcontentloaded",
-            timeout: 30000,
-          });
-
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-
-          const pageHtml = await page.content();
-          const emailMatch = pageHtml.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-
-          biz.email = emailMatch ? emailMatch[0] : "No information";
-
-          await page.close();
-        } catch (error) {
-          console.error(`Error fetching details for ${biz.bizWebsite}: ${error.message}`);
-          biz.email = "No information";
-        }
-      })
-    );
-
-    if (index < businessChunks.length - 1) {
-      console.log("Waiting 15 seconds before next batch...");
-      await new Promise((resolve) => setTimeout(resolve, 15000));
+    if (browserMaps) {
+      await browserMaps.close();
     }
   }
-
-  await browser.close();
 }
 
-module.exports = { searchGoogleMaps, saveToExcel, cancelScraping };
+module.exports = {
+  searchGoogleMaps,
+  cancelScraping
+};

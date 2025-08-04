@@ -1,3 +1,4 @@
+
 const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const { searchGoogleMaps, cancelScraping } = require("./googleMaps"); 
@@ -15,13 +16,13 @@ let userProfile = null;
 
 app.whenReady().then(() => {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1200,
+    height: 800,
     icon: path.join(__dirname, "/src/img/bcdq.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      nodeIntegration: true, 
-      contextIsolation: false, 
+      nodeIntegration: false, 
+      contextIsolation: true, 
     },
   });
 
@@ -38,7 +39,6 @@ ipcMain.on("run-scraper", async (event, query) => {
   }
 });
 
-// Cancel scraper
 ipcMain.on("cancel-scraper", async (event) => {
   try {
     if (scrapingProcess) {
@@ -51,7 +51,6 @@ ipcMain.on("cancel-scraper", async (event) => {
   }
 });
 
-// Google OAuth setup
 ipcMain.on("google-auth", async (event) => {
   try {
     oauth2Client = new google.auth.OAuth2(
@@ -71,7 +70,6 @@ ipcMain.on("google-auth", async (event) => {
       scope: scopes,
     });
 
-    // Create temporary server to handle OAuth callback
     const server = http.createServer(async (req, res) => {
       const queryObject = url.parse(req.url, true).query;
       
@@ -80,7 +78,6 @@ ipcMain.on("google-auth", async (event) => {
           const { tokens } = await oauth2Client.getAccessToken(queryObject.code);
           oauth2Client.setCredentials(tokens);
           
-          // Get user profile
           const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
           const userInfo = await oauth2.userinfo.get();
           userProfile = userInfo.data;
@@ -107,7 +104,6 @@ ipcMain.on("google-auth", async (event) => {
   }
 });
 
-// Send emails
 ipcMain.on("send-emails", async (event, { emailData, template }) => {
   try {
     if (!oauth2Client || !oauth2Client.credentials) {
@@ -160,7 +156,6 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
         sentCount++;
         event.reply("email-progress", { sent: sentCount, total: totalEmails, current: data.companyName });
         
-        // Rate limiting delay
         await new Promise(resolve => setTimeout(resolve, 1500));
       } catch (emailError) {
         failedCount++;
@@ -176,13 +171,11 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
   }
 });
 
-// Cancel email sending
 ipcMain.on("cancel-emails", (event) => {
   emailSendingProcess = false;
   event.reply("email-status", "❌ Email sending cancelled by user");
 });
 
-// Download Excel file
 ipcMain.on("download-excel", (event, scrapedData) => {
   if (!scrapedData || scrapedData.length === 0) {
     event.reply("download-status", "❌ No data available to download.");
