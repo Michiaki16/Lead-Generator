@@ -9,7 +9,7 @@ const http = require('http');
 const url = require('url');
 
 let mainWindow;
-let oauth2Client;
+let oauth2Client = null;
 let scrapingProcess = null;
 let emailSendingProcess = null;
 let userProfile = null;
@@ -53,34 +53,36 @@ ipcMain.on("cancel-scraper", async (event) => {
 
 ipcMain.on("google-auth", async (event) => {
   try {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      throw new Error('Google credentials not configured');
+    }
+
     oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
       'http://localhost:3000/oauth2callback'
     );
 
-    const scopes = [
-      'https://www.googleapis.com/auth/gmail.send',
-      'https://www.googleapis.com/auth/userinfo.profile',
-      'https://www.googleapis.com/auth/userinfo.email'
-    ];
-
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
-      scope: scopes,
+      scope: [
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/userinfo.email'
+      ],
     });
 
     const server = http.createServer(async (req, res) => {
-      const queryObject = url.parse(req.url, true).query;
+      const { code } = url.parse(req.url, true).query;
       
-      if (queryObject.code) {
+      if (code) {
         try {
-          const { tokens } = await oauth2Client.getAccessToken(queryObject.code);
+          const { tokens } = await oauth2Client.getAccessToken(code);
           oauth2Client.setCredentials(tokens);
           
           const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-          const userInfo = await oauth2.userinfo.get();
-          userProfile = userInfo.data;
+          const { data: userInfo } = await oauth2.userinfo.get();
+          userProfile = userInfo;
           
           res.writeHead(200, { 'Content-Type': 'text/html' });
           res.end('<h1>Authentication successful! You can close this window.</h1>');
@@ -96,9 +98,7 @@ ipcMain.on("google-auth", async (event) => {
       }
     });
 
-    server.listen(3000, () => {
-      shell.openExternal(authUrl);
-    });
+    server.listen(3000, () => shell.openExternal(authUrl));
   } catch (error) {
     event.reply("auth-error", error.message);
   }

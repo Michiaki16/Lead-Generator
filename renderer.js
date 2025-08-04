@@ -109,8 +109,7 @@ function setupEventListeners() {
 
 function updateSendEmailsButton() {
     const sendBtn = document.getElementById('sendEmailsBtn');
-    const tableRows = document.querySelectorAll("#resultsTable tbody tr");
-    const hasData = tableRows.length > 0;
+    const hasData = document.querySelectorAll("#resultsTable tbody tr").length > 0;
     const hasTemplate = emailTemplate.length > 0;
     
     sendBtn.disabled = !isLoggedIn || !hasData || !hasTemplate;
