@@ -107,9 +107,9 @@ function setupEventListeners() {
 function updateSendEmailsButton() {
     const sendBtn = document.getElementById('sendEmailsBtn');
     const hasData = document.querySelectorAll("#resultsTable tbody tr").length > 0;
-    const hasTemplate = emailTemplate.length > 0;
 
-    sendBtn.disabled = !isLoggedIn || !hasData || !hasTemplate;
+    // Only require login and data - email template is optional (has default)
+    sendBtn.disabled = !isLoggedIn || !hasData;
 }
 
 function runScraper() {
@@ -228,9 +228,19 @@ function sendEmails() {
         return;
     }
 
-    if (!emailTemplate.trim()) {
-        alert("Please create an email template first");
-        return;
+    // Use default template if no custom template is set
+    let currentTemplate = emailTemplate.trim();
+    if (!currentTemplate) {
+        currentTemplate = `Good Day, {companyName}!
+
+We hope this message finds you well. We are reaching out to explore potential business opportunities and discuss how we can support your company's growth.
+
+Your business has caught our attention, and we believe there may be valuable synergies between our organizations. We would love to schedule a brief conversation to learn more about your needs and share how our services might benefit {companyName}.
+
+Please let us know if you would be interested in a short discussion at your convenience.
+
+Best regards,
+Your Name`;
     }
 
     const rows = document.querySelectorAll("#resultsTable tbody tr");
@@ -271,11 +281,15 @@ function sendEmails() {
         // Retrieve email subject from localStorage
         const emailSubject = localStorage.getItem('emailSubject') || "Business Inquiry for {companyName}";
 
-        // Retrieve email template from localStorage
-        const emailContent = localStorage.getItem('emailTemplate') || "";
-
         emailData.forEach(data => {
           const emailSubjectProcessed = emailSubject
+          .replace(/{companyName}/g, data.companyName || "")
+          .replace(/{email}/g, data.email || "")
+          .replace(/{phone}/g, data.phone || "")
+          .replace(/{address}/g, data.address || "")
+          .replace(/{website}/g, data.website || "");
+
+        const emailContentProcessed = currentTemplate
           .replace(/{companyName}/g, data.companyName || "")
           .replace(/{email}/g, data.email || "")
           .replace(/{phone}/g, data.phone || "")
@@ -287,7 +301,7 @@ function sendEmails() {
           `Subject: ${emailSubjectProcessed}`,
           `Content-Type: text/html; charset="UTF-8"`,
           '',
-          emailContent
+          emailContentProcessed
         ].join('\n');
             window.electronAPI.sendEmails({ emailData: [data], template: emailMessage });
         });
