@@ -85,18 +85,18 @@ async function autoScroll(page) {
   });
   
   // Additional wait for any final content to load
-  await page.waitForTimeout(2000);
+  await new Promise(resolve => setTimeout(resolve, 2000));
   console.log("Auto-scroll process completed");
 }
 
 function estimateScrapingTime(businessCount) {
-  const timePerBusiness = 2; // seconds per business
+  const timePerBusiness = 4; // increased time per business for more thorough scraping
   const totalMinutes = Math.ceil((businessCount * timePerBusiness) / 60);
   return Math.max(1, totalMinutes);
 }
 
 async function scrapeEmailsParallel(businesses, event) {
-  const batchSize = 5;
+  const batchSize = 3; // Reduced batch size for more thorough scraping
   const batches = [];
 
   for (let i = 0; i < businesses.length; i += batchSize) {
@@ -121,7 +121,7 @@ async function scrapeEmailsParallel(businesses, event) {
           page = await browserMaps.newPage();
           await page.goto(business.googleUrl, { 
             waitUntil: "networkidle2", 
-            timeout: 15000 
+            timeout: 20000 
           });
           
           // Look for website link on Google Maps page
@@ -142,19 +142,26 @@ async function scrapeEmailsParallel(businesses, event) {
         if (websiteUrl) {
           page = await browserMaps.newPage();
           
-          // Set user agent to avoid blocking
-          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+          // Enhanced browser settings to avoid detection
+          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+          await page.setViewport({ width: 1366, height: 768 });
+          
+          // Set extra headers to appear more legitimate
+          await page.setExtraHTTPHeaders({
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+          });
           
           await page.goto(websiteUrl, { 
-            waitUntil: "domcontentloaded", 
-            timeout: 15000 
+            waitUntil: "networkidle0", 
+            timeout: 25000 
           });
 
-          // Wait a bit for dynamic content to load
-          await page.waitForTimeout(2000);
+          // Wait longer for dynamic content and JavaScript to load
+          await new Promise(resolve => setTimeout(resolve, 4000));
 
-          // Enhanced email extraction
-          const emailData = await page.evaluate(() => {
+          // Try to navigate to contact page if no email is found initially
+          let emailData = await page.evaluate(() => {
             const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
             const text = document.body.innerText;
             const html = document.body.innerHTML;
@@ -172,14 +179,16 @@ async function scrapeEmailsParallel(businesses, event) {
             // Combine and deduplicate emails
             const allEmails = [...new Set([...textEmails, ...mailtoLinks, ...htmlEmails])];
             
-            // Filter out common non-business emails and prioritize contact/info emails
+            // Filter out common non-business emails
             const filteredEmails = allEmails.filter(email => {
               const lowerEmail = email.toLowerCase();
               return !lowerEmail.includes('noreply') && 
                      !lowerEmail.includes('no-reply') &&
                      !lowerEmail.includes('donotreply') &&
                      !lowerEmail.includes('example.com') &&
-                     email.length < 50; // Avoid very long emails which might be false positives
+                     !lowerEmail.includes('test@') &&
+                     !lowerEmail.includes('sample@') &&
+                     email.length < 50;
             });
             
             // Prioritize business-relevant emails
@@ -189,11 +198,83 @@ async function scrapeEmailsParallel(businesses, event) {
                      lowerEmail.includes('contact') || 
                      lowerEmail.includes('hello') ||
                      lowerEmail.includes('admin') ||
-                     lowerEmail.includes('support');
+                     lowerEmail.includes('support') ||
+                     lowerEmail.includes('sales') ||
+                     lowerEmail.includes('inquiry');
             });
             
             return priorityEmails.length > 0 ? priorityEmails[0] : (filteredEmails.length > 0 ? filteredEmails[0] : null);
           });
+
+          // If no email found, try to find and visit contact page
+          if (!emailData) {
+            try {
+              const contactPageFound = await page.evaluate(() => {
+                const contactLinks = Array.from(document.querySelectorAll('a'))
+                  .filter(link => {
+                    const text = link.textContent.toLowerCase();
+                    const href = link.href.toLowerCase();
+                    return (text.includes('contact') || text.includes('about') || 
+                           href.includes('contact') || href.includes('about')) &&
+                           link.href.startsWith('http');
+                  });
+                
+                if (contactLinks.length > 0) {
+                  return contactLinks[0].href;
+                }
+                return null;
+              });
+
+              if (contactPageFound) {
+                await page.goto(contactPageFound, { 
+                  waitUntil: "networkidle0", 
+                  timeout: 20000 
+                });
+                
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+                // Try email extraction again on contact page
+                emailData = await page.evaluate(() => {
+                  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+                  const text = document.body.innerText;
+                  const html = document.body.innerHTML;
+                  
+                  const textEmails = text.match(emailRegex) || [];
+                  const mailtoLinks = Array.from(document.querySelectorAll('a[href*="mailto:"]'))
+                    .map(link => link.href.replace('mailto:', '').split('?')[0]);
+                  const htmlEmails = html.match(emailRegex) || [];
+                  
+                  const allEmails = [...new Set([...textEmails, ...mailtoLinks, ...htmlEmails])];
+                  
+                  const filteredEmails = allEmails.filter(email => {
+                    const lowerEmail = email.toLowerCase();
+                    return !lowerEmail.includes('noreply') && 
+                           !lowerEmail.includes('no-reply') &&
+                           !lowerEmail.includes('donotreply') &&
+                           !lowerEmail.includes('example.com') &&
+                           !lowerEmail.includes('test@') &&
+                           !lowerEmail.includes('sample@') &&
+                           email.length < 50;
+                  });
+                  
+                  const priorityEmails = filteredEmails.filter(email => {
+                    const lowerEmail = email.toLowerCase();
+                    return lowerEmail.includes('info') || 
+                           lowerEmail.includes('contact') || 
+                           lowerEmail.includes('hello') ||
+                           lowerEmail.includes('admin') ||
+                           lowerEmail.includes('support') ||
+                           lowerEmail.includes('sales') ||
+                           lowerEmail.includes('inquiry');
+                  });
+                  
+                  return priorityEmails.length > 0 ? priorityEmails[0] : (filteredEmails.length > 0 ? filteredEmails[0] : null);
+                });
+              }
+            } catch (contactPageError) {
+              console.log(`Could not access contact page for ${business.storeName}`);
+            }
+          }
 
           business.email = emailData || "No info";
           await page.close();
@@ -224,8 +305,8 @@ async function scrapeEmailsParallel(businesses, event) {
 
     await Promise.all(promises);
 
-    // Delay between batches to avoid overwhelming servers
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Longer delay between batches for more respectful scraping
+    await new Promise(resolve => setTimeout(resolve, 3000));
   }
 }
 
