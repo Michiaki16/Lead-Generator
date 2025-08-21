@@ -19,74 +19,85 @@ async function autoScroll(page) {
   
   await page.evaluate(async () => {
     await new Promise((resolve) => {
-      let lastHeight = 0;
-      let stagnantCount = 0;
+      // Try to find the feed wrapper - Google Maps uses different selectors
+      const wrapper = document.querySelector('div[role="feed"]') || 
+                     document.querySelector('[role="main"]') || 
+                     document.querySelector('.section-layout') ||
+                     document.querySelector('[data-value="Search results"]') ||
+                     document.querySelector('.section-result') ||
+                     document.body;
+
+      let totalHeight = 0;
+      const distance = 1000;
+      const scrollDelay = 3000;
+      const maxScrollAttempts = 300; // Increased for more thorough searching
       let scrollAttempts = 0;
-      const maxScrollAttempts = 200; // Maximum scroll attempts
-      const maxStagnantCount = 10; // Stop if height doesn't change for 10 attempts
-      
-      const scroll = () => {
-        // Scroll the main results panel specifically
-        const resultsPanel = document.querySelector('[role="main"]') || 
-                           document.querySelector('.section-layout') ||
-                           document.querySelector('[data-value="Search results"]') ||
-                           document.body;
+      let stagnantScrolls = 0;
+      const maxStagnantScrolls = 8;
+
+      const timer = setInterval(async () => {
+        scrollAttempts++;
         
-        if (resultsPanel) {
-          resultsPanel.scrollTop = resultsPanel.scrollHeight;
+        // Get current business count for progress tracking
+        const businessCount = document.querySelectorAll("a[href*='/maps/place/']").length;
+        console.log(`Scroll attempt ${scrollAttempts}: Found ${businessCount} businesses`);
+        
+        let scrollHeightBefore = wrapper.scrollHeight;
+        
+        // Scroll the wrapper element
+        if (wrapper && wrapper !== document.body) {
+          wrapper.scrollBy(0, distance);
+        } else {
+          // Fallback to window scrolling
+          window.scrollBy(0, distance);
         }
         
-        // Also scroll the window
-        window.scrollTo(0, document.body.scrollHeight);
-        
+        totalHeight += distance;
+
         // Try to click "Show more results" or similar buttons
-        const showMoreButtons = document.querySelectorAll('button[jsaction*="more"], button[aria-label*="more"], button[aria-label*="More"], .section-loading-more-results button');
+        const showMoreButtons = document.querySelectorAll(
+          'button[jsaction*="more"], button[aria-label*="more"], button[aria-label*="More"], ' +
+          '.section-loading-more-results button, button[data-value="Show more results"], ' +
+          'button:contains("Show more"), button:contains("Load more")'
+        );
         showMoreButtons.forEach(button => {
-          if (button.offsetParent !== null) { // Check if button is visible
+          if (button.offsetParent !== null) {
             button.click();
           }
         });
-      };
-      
-      const checkProgress = () => {
-        const currentHeight = Math.max(
-          document.body.scrollHeight,
-          document.documentElement.scrollHeight,
-          document.body.offsetHeight,
-          document.documentElement.offsetHeight
-        );
-        
-        const businessCount = document.querySelectorAll("a[href*='/maps/place/']").length;
-        console.log(`Scroll attempt ${scrollAttempts}: Found ${businessCount} businesses, Page height: ${currentHeight}`);
-        
-        if (currentHeight === lastHeight) {
-          stagnantCount++;
-        } else {
-          stagnantCount = 0;
-          lastHeight = currentHeight;
+
+        if (totalHeight >= scrollHeightBefore) {
+          totalHeight = 0;
+          
+          // Wait for content to load
+          await new Promise((resolve) => setTimeout(resolve, scrollDelay));
+
+          let scrollHeightAfter = wrapper.scrollHeight;
+          
+          if (scrollHeightAfter > scrollHeightBefore) {
+            // New content loaded, reset stagnant counter
+            stagnantScrolls = 0;
+            return;
+          } else {
+            // No new content, increment stagnant counter
+            stagnantScrolls++;
+            
+            // If we've been stagnant too long or hit max attempts, stop
+            if (stagnantScrolls >= maxStagnantScrolls || scrollAttempts >= maxScrollAttempts) {
+              clearInterval(timer);
+              const finalBusinessCount = document.querySelectorAll("a[href*='/maps/place/']").length;
+              console.log(`Auto-scroll completed after ${scrollAttempts} attempts. Final business count: ${finalBusinessCount}`);
+              resolve();
+            }
+          }
         }
-        
-        scrollAttempts++;
-        
-        // Continue scrolling if we haven't hit limits
-        if (scrollAttempts < maxScrollAttempts && stagnantCount < maxStagnantCount) {
-          scroll();
-          setTimeout(checkProgress, 500); // Increased delay to allow content to load
-        } else {
-          console.log(`Auto-scroll completed. Total attempts: ${scrollAttempts}, Final business count: ${businessCount}`);
-          resolve();
-        }
-      };
-      
-      // Start the scrolling process
-      scroll();
-      setTimeout(checkProgress, 500);
+      }, 200);
     });
   });
   
   // Additional wait for any final content to load
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  console.log("Auto-scroll process completed");
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  console.log("Enhanced auto-scroll process completed");
 }
 
 function estimateScrapingTime(businessCount) {
