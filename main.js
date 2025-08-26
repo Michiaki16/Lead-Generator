@@ -183,6 +183,57 @@ res.end(`
   }
 });
 
+// Email sending with rate limiting and retry logic
+async function sendEmailWithRetry(gmail, emailData, template, maxRetries = 3, baseDelay = 5000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      let emailContent = (template.body || template)
+        .replace(/{companyName}/g, emailData.companyName || "")
+        .replace(/{email}/g, emailData.email || "")
+        .replace(/{phone}/g, emailData.phone || "")
+        .replace(/{address}/g, emailData.address || "")
+        .replace(/{website}/g, emailData.website || "");
+
+      let emailSubject = (template.subject || "Business Inquiry for {companyName}");
+      const emailSubjectProcessed = emailSubject
+        .replace(/{companyName}/g, emailData.companyName || "")
+        .replace(/{email}/g, emailData.email || "")
+        .replace(/{phone}/g, emailData.phone || "")
+        .replace(/{address}/g, emailData.address || "")
+        .replace(/{website}/g, emailData.website || "");
+
+      const emailMessage = [
+        `To: ${emailData.email}`,
+        `Subject: ${emailSubjectProcessed}`,
+        `Content-Type: text/html; charset="UTF-8"`,
+        '',
+        emailContent
+      ].join('\n');
+
+      const encodedEmail = Buffer.from(emailMessage)
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: { raw: encodedEmail }
+      });
+
+      return { success: true, subject: emailSubjectProcessed };
+    } catch (error) {
+      if (error.message.includes('Too many concurrent requests') && attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+        console.log(`Rate limit hit for ${emailData.email}, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 ipcMain.on("send-emails", async (event, { emailData, template }) => {
   try {
     if (!oauth2Client || !oauth2Client.credentials) {
@@ -194,73 +245,61 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     let sentCount = 0;
     let failedCount = 0;
-    const validEmails = emailData.filter(data => data.email && data.email !== "No info" && data.email !== "Fetching...");
+    const validEmails = emailData.filter(data => {
+      // Basic email validation
+      const email = data.email;
+      return email && 
+             email !== "No info" && 
+             email !== "Fetching..." &&
+             email.includes('@') &&
+             email.includes('.') &&
+             !email.match(/^\d+$/) && // Not just numbers
+             email.length > 5;
+    });
     const totalEmails = validEmails.length;
 
-    event.reply("email-status", `📧 Starting to send ${totalEmails} emails...`);
+    event.reply("email-status", `📧 Starting to send ${totalEmails} emails with rate limiting...`);
 
-    for (const data of validEmails) {
+    for (const [index, data] of validEmails.entries()) {
       if (!emailSendingProcess) {
         event.reply("email-status", "❌ Email sending cancelled by user");
         return;
       }
 
       try {
-        let emailContent = (template.body || template)
-          .replace(/{companyName}/g, data.companyName || "")
-          .replace(/{email}/g, data.email || "")
-          .replace(/{phone}/g, data.phone || "")
-          .replace(/{address}/g, data.address || "")
-          .replace(/{website}/g, data.website || "");
+        const result = await sendEmailWithRetry(gmail, data, template);
+        
+        if (result.success) {
+          // Save to database
+          try {
+            await emailDB.addSentEmail({
+              companyName: data.companyName,
+              email: data.email,
+              phone: data.phone,
+              address: data.address,
+              website: data.website,
+              subject: result.subject
+            });
+          } catch (dbError) {
+            console.error('Error saving to database:', dbError);
+          }
 
-        let emailSubject = (template.subject || "Business Inquiry for {companyName}");
-        const emailSubjectProcessed = emailSubject
-          .replace(/{companyName}/g, data.companyName || "")
-          .replace(/{email}/g, data.email || "")
-          .replace(/{phone}/g, data.phone || "")
-          .replace(/{address}/g, data.address || "")
-          .replace(/{website}/g, data.website || "");
-
-        const emailMessage = [
-          `To: ${data.email}`,
-          `Subject: ${emailSubjectProcessed}`,
-          `Content-Type: text/html; charset="UTF-8"`,
-          '',
-          emailContent
-        ].join('\n');
-
-        const encodedEmail = Buffer.from(emailMessage)
-          .toString('base64')
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=+$/, '');
-
-        await gmail.users.messages.send({
-          userId: 'me',
-          requestBody: { raw: encodedEmail }
-        });
-
-        // Save to database
-        try {
-          await emailDB.addSentEmail({
-            companyName: data.companyName,
-            email: data.email,
-            phone: data.phone,
-            address: data.address,
-            website: data.website,
-            subject: emailSubjectProcessed
-          });
-        } catch (dbError) {
-          console.error('Error saving to database:', dbError);
+          sentCount++;
+          console.log(`✅ Email sent successfully to ${data.email}`);
         }
-
-        sentCount++;
+        
         event.reply("email-progress", { sent: sentCount, total: totalEmails, current: data.companyName });
         
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // Rate limiting: Wait between emails (increased from 1.5s to 3s)
+        const delayTime = 3000 + Math.random() * 2000; // 3-5 seconds random delay
+        await new Promise(resolve => setTimeout(resolve, delayTime));
+        
       } catch (emailError) {
         failedCount++;
-        console.error(`Failed to send email to ${data.email}:`, emailError.message);
+        console.error(`❌ Failed to send email to ${data.email}:`, emailError.message);
+        
+        // Longer delay after failures
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
 
