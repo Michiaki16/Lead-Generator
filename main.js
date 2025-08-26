@@ -339,8 +339,11 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
 });
 
 ipcMain.on("cancel-emails", (event) => {
-  emailSendingProcess = false;
-  event.reply("email-status", "❌ Email sending cancelled by user");
+  if (emailSendingProcess) {
+    emailSendingProcess = false;
+    event.reply("email-status", "❌ Email sending cancelled by user");
+    console.log("Email sending process cancelled by user");
+  }
 });
 
 ipcMain.on("download-excel", (event, scrapedData) => {

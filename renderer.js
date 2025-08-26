@@ -144,6 +144,9 @@ function cancelAllProcesses() {
     if (emailSendingInProgress) {
         window.electronAPI.cancelEmails();
         emailSendingInProgress = false;
+        document.getElementById('sendEmailsBtn').disabled = false;
+        updateSendEmailsButton();
+        document.getElementById("status").innerText = "❌ Email sending cancelled by user";
     }
 }
 
