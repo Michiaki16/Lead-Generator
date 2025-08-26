@@ -100,7 +100,7 @@ body {
     width: auto;
     box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
   }
-  
+
   .custom-button:hover {
     background-color: gold;
     color: black;
@@ -117,7 +117,7 @@ body {
     width: auto;
     box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
   }
-  
+
 .search-bar input {
     flex: 1;
     border: none;
@@ -315,8 +315,8 @@ th {
     justify-content: center;
     gap: 5px;
     border-radius: 5px;
-    width: auto;
     box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 #importFileBtn:hover {
@@ -493,17 +493,17 @@ th {
     border: 1px solid red ;
     background-color: red;
   }
-  
+
   .button, .button__icon, .button__text {
     transition: all 0.3s;
   }
-  
+
   .button .button__text {
     transform: translateX(30px);
     color: #fff;
     font-weight: 600;
   }
-  
+
   .button .button__icon {
     position: absolute;
     transform: translateX(109px);
@@ -514,29 +514,74 @@ th {
     align-items: center;
     justify-content: center;
   }
-  
+
   .button .svg {
     width: 30px;
     stroke: #fff;
   }
-  
+
   .button:hover {
     background: red;
   }
-  
+
   .button:hover .button__text {
     color: transparent;
   }
-  
+
   .button:hover .button__icon {
     width: 148px;
     transform: translateX(0);
   }
-  
+
   .button:active .button__icon {
     background-color: black;
   }
-  
+
   .button:active {
     border: 1px solid black;
   }
+
+/* Email History Styles */
+.history-btn {
+    background: linear-gradient(45deg, #9b59b6, #8e44ad);
+}
+
+.history-btn:hover {
+    background: linear-gradient(45deg, #8e44ad, #7d3c98);
+}
+
+.history-table-container {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+#historyTable {
+    font-size: 14px;
+}
+
+#historyTable th {
+    background-color: #f8f9fa !important;
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#historyTable tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+#historyTable tr:hover {
+    background-color: #e3f2fd;
+}
+
+.delete-history-btn:hover {
+    background: #cc3333 !important;
+}
+
+/* Already sent email indicator */
+.row-checkbox:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

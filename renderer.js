@@ -28,10 +28,15 @@ function setupEventListeners() {
     document.getElementById('clearBtn').addEventListener('click', clearTable);
     document.getElementById('templateBtn').addEventListener('click', openEmailTemplateModal);
     document.getElementById('downloadBtn').addEventListener('click', downloadData);
+    document.getElementById('viewHistoryBtn').addEventListener('click', openEmailHistoryModal);
     document.getElementById('fileInput').addEventListener('change', handleFileImport);
     document.getElementById('closeModal').addEventListener('click', closeEmailTemplateModal);
     document.getElementById('cancelModalBtn').addEventListener('click', closeEmailTemplateModal);
     document.getElementById('saveTemplateBtn').addEventListener('click', saveEmailTemplate);
+    document.getElementById('closeHistoryModal').addEventListener('click', closeEmailHistoryModal);
+    document.getElementById('closeHistoryModalBtn').addEventListener('click', closeEmailHistoryModal);
+    document.getElementById('refreshHistoryBtn').addEventListener('click', refreshEmailHistory);
+    document.getElementById('historySearch').addEventListener('input', filterHistoryTable);
 
     // Enter key for search
     document.getElementById('searchQuery').addEventListener('keypress', (e) => {
@@ -443,5 +448,120 @@ function downloadData() {
     window.electronAPI.downloadExcel(data);
 }
 
+// Email History Functions
+async function openEmailHistoryModal() {
+    document.getElementById('emailHistoryModal').style.display = 'block';
+    await loadEmailHistory();
+}
+
+function closeEmailHistoryModal() {
+    document.getElementById('emailHistoryModal').style.display = 'none';
+}
+
+async function loadEmailHistory() {
+    try {
+        const sentEmails = await window.electronAPI.getSentEmails();
+        populateHistoryTable(sentEmails);
+    } catch (error) {
+        console.error('Error loading email history:', error);
+        alert('Error loading email history');
+    }
+}
+
+function populateHistoryTable(sentEmails) {
+    const tableBody = document.getElementById('historyTableBody');
+    tableBody.innerHTML = '';
+
+    if (sentEmails.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">No emails sent yet</td></tr>';
+        return;
+    }
+
+    sentEmails.forEach(email => {
+        const row = document.createElement('tr');
+        const sentDate = new Date(email.sent_date).toLocaleString();
+        
+        row.innerHTML = `
+            <td style="padding: 8px; border: 1px solid #ddd;">${email.company_name || 'N/A'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${email.email_address}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${email.phone_number || 'N/A'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${sentDate}</td>
+            <td style="padding: 8px; border: 1px solid #ddd; max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${email.email_subject || 'N/A'}">${email.email_subject || 'N/A'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">
+                <button class="delete-history-btn" onclick="deleteHistoryRecord(${email.id})" style="background: #ff4444; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer;">Delete</button>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+async function deleteHistoryRecord(id) {
+    if (confirm('Are you sure you want to delete this email record?')) {
+        try {
+            await window.electronAPI.deleteEmailRecord(id);
+            await loadEmailHistory(); // Refresh the table
+        } catch (error) {
+            console.error('Error deleting email record:', error);
+            alert('Error deleting email record');
+        }
+    }
+}
+
+async function refreshEmailHistory() {
+    await loadEmailHistory();
+}
+
+function filterHistoryTable() {
+    const filterValue = document.getElementById('historySearch').value.toLowerCase();
+    const rows = document.querySelectorAll("#historyTable tbody tr");
+
+    rows.forEach(row => {
+        if (row.children.length > 1) { // Skip "no data" row
+            const companyName = row.children[0].textContent.toLowerCase();
+            const email = row.children[1].textContent.toLowerCase();
+            row.style.display = (companyName.includes(filterValue) || email.includes(filterValue)) ? '' : 'none';
+        }
+    });
+}
+
+// Enhanced populateTable to mark already emailed companies
+async function populateTable(data) {
+    const tableBody = document.querySelector("#resultsTable tbody");
+    tableBody.innerHTML = "";
+
+    for (const business of data) {
+        const row = document.createElement("tr");
+        
+        // Check if email was already sent
+        let isAlreadySent = false;
+        if (business.email && business.email !== "No info" && business.email !== "Fetching...") {
+            try {
+                isAlreadySent = await window.electronAPI.checkEmailSent(business.email);
+            } catch (error) {
+                console.error('Error checking email status:', error);
+            }
+        }
+        
+        // Add visual indicator for already sent emails
+        const sentIndicator = isAlreadySent ? ' ✅' : '';
+        const rowClass = isAlreadySent ? 'style="background-color: #e8f5e8;"' : '';
+        
+        row.innerHTML = `
+            <td class="checkbox-cell"><input type="checkbox" class="row-checkbox" ${isAlreadySent ? 'disabled' : ''}></td>
+            <td>${business.storeName || "N/A"}${sentIndicator}</td>
+            <td>${business.phone || "No info"}</td>
+            <td>${business.email || "No info"}</td>
+            <td>${business.address || "No info"}</td>
+            <td>${business.bizWebsite ? `<a href='${business.bizWebsite}' target='_blank'>Website</a>` : "No info"}</td>
+        `;
+        
+        if (isAlreadySent) {
+            row.setAttribute('style', 'background-color: #e8f5e8;');
+            row.setAttribute('title', 'Email already sent to this company');
+        }
+        
+        tableBody.appendChild(row);
+    }
+}
 
 window.addEventListener('load', initializeApp);

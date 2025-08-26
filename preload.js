@@ -9,6 +9,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelEmails: () => ipcRenderer.send('cancel-emails'),
   downloadExcel: (data) => ipcRenderer.send('download-excel', data),
   
+  // Database functions
+  getSentEmails: () => ipcRenderer.invoke('get-sent-emails'),
+  checkEmailSent: (email) => ipcRenderer.invoke('check-email-sent', email),
+  deleteEmailRecord: (id) => ipcRenderer.invoke('delete-email-record', id),
+  
   onScraperStatus: (callback) => ipcRenderer.on('scraper-status', callback),
   onScraperProgress: (callback) => ipcRenderer.on('scraper-progress', callback),
   onScraperResults: (callback) => ipcRenderer.on('scraper-results', callback),

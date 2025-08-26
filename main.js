@@ -7,6 +7,7 @@ const xlsx = require("xlsx");
 const { google } = require('googleapis');
 const http = require('http');
 const url = require('url');
+const EmailDatabase = require('./database');
 
 let mainWindow;
 let oauth2Client = null;
@@ -14,8 +15,11 @@ let authServer = null; // Track the OAuth server
 let scrapingProcess = null;
 let emailSendingProcess = null;
 let userProfile = null;
+let emailDB = null;
 
 app.whenReady().then(() => {
+  emailDB = new EmailDatabase();
+  
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -236,6 +240,20 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
           requestBody: { raw: encodedEmail }
         });
 
+        // Save to database
+        try {
+          await emailDB.addSentEmail({
+            companyName: data.companyName,
+            email: data.email,
+            phone: data.phone,
+            address: data.address,
+            website: data.website,
+            subject: emailSubjectProcessed
+          });
+        } catch (dbError) {
+          console.error('Error saving to database:', dbError);
+        }
+
         sentCount++;
         event.reply("email-progress", { sent: sentCount, total: totalEmails, current: data.companyName });
         
@@ -280,7 +298,38 @@ ipcMain.on("download-excel", (event, scrapedData) => {
   }
 });
 
+// Database IPC handlers
+ipcMain.handle("get-sent-emails", async () => {
+  try {
+    return await emailDB.getAllSentEmails();
+  } catch (error) {
+    console.error('Error getting sent emails:', error);
+    return [];
+  }
+});
+
+ipcMain.handle("check-email-sent", async (event, emailAddress) => {
+  try {
+    return await emailDB.checkIfEmailSent(emailAddress);
+  } catch (error) {
+    console.error('Error checking email:', error);
+    return false;
+  }
+});
+
+ipcMain.handle("delete-email-record", async (event, id) => {
+  try {
+    return await emailDB.deleteEmailRecord(id);
+  } catch (error) {
+    console.error('Error deleting email record:', error);
+    return false;
+  }
+});
+
 app.on("window-all-closed", () => {
+  if (emailDB) {
+    emailDB.close();
+  }
   if (process.platform !== "darwin") {
     app.quit();
   }

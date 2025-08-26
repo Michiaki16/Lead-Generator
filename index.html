@@ -434,9 +434,46 @@
         <button class="action-btn import-btn" id="importBtn">📂 Import File</button>
         <button class="action-btn clear-btn" id="clearBtn">🗑️ Clear Table</button>
         <button class="action-btn template-btn" id="templateBtn">✉️ Save Email Template</button>
+        <button class="action-btn history-btn" id="viewHistoryBtn">📜 View Email History</button>
     </div>
 
     <input type="file" id="fileInput" class="hidden-file-input" accept=".xlsx,.xls,.csv">
+
+    <!-- Email History Modal -->
+    <div id="emailHistoryModal" class="modal">
+        <div class="modal-content" style="max-width: 90%; max-height: 80%; overflow-y: auto;">
+            <span class="close" id="closeHistoryModal">&times;</span>
+            <h2>📜 Email History</h2>
+            <p>Companies that have already been sent emails:</p>
+            
+            <div class="history-search-container">
+                <input type="text" id="historySearch" placeholder="Search companies..." style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            
+            <div class="history-table-container" style="max-height: 400px; overflow-y: auto;">
+                <table id="historyTable" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #f5f5f5; position: sticky; top: 0;">
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Company Name</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Email</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Phone</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Date Sent</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Subject</th>
+                            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <!-- History data will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button class="modal-btn cancel-btn" id="closeHistoryModalBtn">Close</button>
+                <button class="modal-btn save-btn" id="refreshHistoryBtn">Refresh</button>
+            </div>
+        </div>
+    </div>
 
     <div id="emailTemplateModal" class="modal">
         <div class="modal-content">
