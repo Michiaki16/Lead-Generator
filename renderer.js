@@ -37,6 +37,7 @@ function setupEventListeners() {
     document.getElementById('closeHistoryModalBtn').addEventListener('click', closeEmailHistoryModal);
     document.getElementById('refreshHistoryBtn').addEventListener('click', refreshEmailHistory);
     document.getElementById('historySearch').addEventListener('input', filterHistoryTable);
+    document.getElementById('clearDatabaseBtn').addEventListener('click', clearDatabase);
 
     // Enter key for search
     document.getElementById('searchQuery').addEventListener('keypress', (e) => {
@@ -553,6 +554,21 @@ function filterHistoryTable() {
             row.style.display = (companyName.includes(filterValue) || email.includes(filterValue)) ? '' : 'none';
         }
     });
+}
+
+async function clearDatabase() {
+    if (confirm('Are you sure you want to clear ALL email history? This action cannot be undone!')) {
+        if (confirm('This will permanently delete all sent email records. Are you absolutely sure?')) {
+            try {
+                await window.electronAPI.clearAllEmailHistory();
+                await loadEmailHistory(); // Refresh the table
+                alert('Email history database cleared successfully!');
+            } catch (error) {
+                console.error('Error clearing database:', error);
+                alert('Error clearing database: ' + error.message);
+            }
+        }
+    }
 }
 
 // Enhanced populateTable to mark already emailed companies

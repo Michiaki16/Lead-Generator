@@ -118,6 +118,20 @@ class EmailDatabase {
     });
   }
 
+  clearAllEmails() {
+    return new Promise((resolve, reject) => {
+      const clearQuery = `DELETE FROM sent_emails`;
+
+      this.db.run(clearQuery, function(err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(this.changes);
+        }
+      });
+    });
+  }
+
   close() {
     if (this.db) {
       this.db.close((err) => {

@@ -1,4 +1,3 @@
-
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -8,12 +7,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendEmails: (data) => ipcRenderer.send('send-emails', data),
   cancelEmails: () => ipcRenderer.send('cancel-emails'),
   downloadExcel: (data) => ipcRenderer.send('download-excel', data),
-  
+
   // Database functions
   getSentEmails: () => ipcRenderer.invoke('get-sent-emails'),
-  checkEmailSent: (email) => ipcRenderer.invoke('check-email-sent', email),
+  checkEmailSent: (emailAddress) => ipcRenderer.invoke('check-email-sent', emailAddress),
   deleteEmailRecord: (id) => ipcRenderer.invoke('delete-email-record', id),
-  
+  clearAllEmailHistory: () => ipcRenderer.invoke('clear-all-email-history'),
+
   onScraperStatus: (callback) => ipcRenderer.on('scraper-status', callback),
   onScraperProgress: (callback) => ipcRenderer.on('scraper-progress', callback),
   onScraperResults: (callback) => ipcRenderer.on('scraper-results', callback),
@@ -23,6 +23,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onEmailStatus: (callback) => ipcRenderer.on('email-status', callback),
   onEmailProgress: (callback) => ipcRenderer.on('email-progress', callback),
   onDownloadStatus: (callback) => ipcRenderer.on('download-status', callback),
-  
+
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
 });

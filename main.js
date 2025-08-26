@@ -73,7 +73,7 @@ ipcMain.on("google-auth", async (event) => {
 const authUrl = oauth2Client.generateAuthUrl({
   access_type: 'offline',
   scope: [
-    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/userinfo.profile',
     'https://www.googleapis.com/auth/userinfo.email'
   ],
@@ -388,7 +388,16 @@ ipcMain.handle("delete-email-record", async (event, id) => {
     return await emailDB.deleteEmailRecord(id);
   } catch (error) {
     console.error('Error deleting email record:', error);
-    return false;
+    throw error;
+  }
+});
+
+ipcMain.handle('clear-all-email-history', async (event) => {
+  try {
+    return await emailDB.clearAllEmails();
+  } catch (error) {
+    console.error('Error clearing email history:', error);
+    throw error;
   }
 });
 
