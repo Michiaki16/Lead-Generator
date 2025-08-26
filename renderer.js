@@ -415,7 +415,7 @@ Lydelyn Romero Quitong
 Blue Chalcedony Quartz
 Licensed insurance agent
 Certified Estate and Wealth Planner
-Junior Unit Manager`; {companyName}!";
+Junior Unit Manager`;
     }
 }
 
