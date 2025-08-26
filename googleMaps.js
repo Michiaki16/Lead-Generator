@@ -1,6 +1,9 @@
+
 const puppeteerExtra = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const cheerio = require("cheerio");
+const chromeLauncher = require("chrome-launcher");
+const { exec } = require("child_process");
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -14,310 +17,268 @@ async function cancelScraping() {
   }
 }
 
+async function getChromePath() {
+  const installations = await chromeLauncher.Launcher.getInstallations();
+  if (installations.length > 0) {
+    return installations[0];
+  } else {
+    throw new Error("Chrome installation not found.");
+  }
+}
+
 async function autoScroll(page) {
   console.log("Starting enhanced auto-scroll to load maximum results...");
   
   await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      // Try to find the feed wrapper - Google Maps uses different selectors
-      const wrapper = document.querySelector('div[role="feed"]') || 
-                     document.querySelector('[role="main"]') || 
-                     document.querySelector('.section-layout') ||
-                     document.querySelector('[data-value="Search results"]') ||
-                     document.querySelector('.section-result') ||
-                     document.body;
+    const wrapper = document.querySelector('div[role="feed"]') || 
+                   document.querySelector('[role="main"]') || 
+                   document.querySelector('.section-layout') ||
+                   document.querySelector('[data-value="Search results"]') ||
+                   document.querySelector('.section-result') ||
+                   document.body;
 
+    await new Promise((resolve) => {
       let totalHeight = 0;
       const distance = 1000;
       const scrollDelay = 3000;
-      const maxScrollAttempts = 300; // Increased for more thorough searching
-      let scrollAttempts = 0;
-      let stagnantScrolls = 0;
-      const maxStagnantScrolls = 8;
 
       const timer = setInterval(async () => {
-        scrollAttempts++;
-        
-        // Get current business count for progress tracking
-        const businessCount = document.querySelectorAll("a[href*='/maps/place/']").length;
-        console.log(`Scroll attempt ${scrollAttempts}: Found ${businessCount} businesses`);
-        
         let scrollHeightBefore = wrapper.scrollHeight;
         
-        // Scroll the wrapper element
         if (wrapper && wrapper !== document.body) {
           wrapper.scrollBy(0, distance);
         } else {
-          // Fallback to window scrolling
           window.scrollBy(0, distance);
         }
         
         totalHeight += distance;
 
-        // Try to click "Show more results" or similar buttons
+        // Try to click "Show more results" buttons
         const showMoreButtons = document.querySelectorAll(
           'button[jsaction*="more"], button[aria-label*="more"], button[aria-label*="More"], ' +
-          '.section-loading-more-results button, button[data-value="Show more results"], ' +
-          'button:contains("Show more"), button:contains("Load more")'
+          '.section-loading-more-results button, button[data-value="Show more results"]'
         );
         showMoreButtons.forEach(button => {
-          if (button.offsetParent !== null) {
-            button.click();
+          if (button.offsetParent !== null && button.style.display !== 'none') {
+            try {
+              button.click();
+            } catch (e) {
+              // Ignore click errors
+            }
           }
         });
 
         if (totalHeight >= scrollHeightBefore) {
           totalHeight = 0;
-          
-          // Wait for content to load
           await new Promise((resolve) => setTimeout(resolve, scrollDelay));
 
           let scrollHeightAfter = wrapper.scrollHeight;
-          
           if (scrollHeightAfter > scrollHeightBefore) {
-            // New content loaded, reset stagnant counter
-            stagnantScrolls = 0;
             return;
           } else {
-            // No new content, increment stagnant counter
-            stagnantScrolls++;
-            
-            // If we've been stagnant too long or hit max attempts, stop
-            if (stagnantScrolls >= maxStagnantScrolls || scrollAttempts >= maxScrollAttempts) {
-              clearInterval(timer);
-              const finalBusinessCount = document.querySelectorAll("a[href*='/maps/place/']").length;
-              console.log(`Auto-scroll completed after ${scrollAttempts} attempts. Final business count: ${finalBusinessCount}`);
-              resolve();
-            }
+            clearInterval(timer);
+            resolve();
           }
         }
       }, 200);
     });
   });
   
-  // Additional wait for any final content to load
-  await new Promise(resolve => setTimeout(resolve, 3000));
   console.log("Enhanced auto-scroll process completed");
 }
 
 function estimateScrapingTime(businessCount) {
-  const timePerBusiness = 4; // increased time per business for more thorough scraping
-  const totalMinutes = Math.ceil((businessCount * timePerBusiness) / 60);
-  return Math.max(1, totalMinutes);
+  const totalBatches = Math.ceil(businessCount / 5);
+  return totalBatches * 1;
+}
+
+async function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function scrapeEmailsParallel(businesses, event) {
-  const batchSize = 3; // Reduced batch size for more thorough scraping
-  const batches = [];
+  const chromePath = await getChromePath();
+  const browser = await puppeteerExtra.launch({
+    headless: true,
+    executablePath: chromePath,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+
+  const batchSize = 5;
+  const businessChunks = [];
 
   for (let i = 0; i < businesses.length; i += batchSize) {
-    batches.push(businesses.slice(i, i + batchSize));
+    businessChunks.push(businesses.slice(i, i + batchSize));
   }
 
+  const totalBatches = businessChunks.length;
+  const estimatedTimePerBatch = 60;
   let processedCount = 0;
 
-  for (const batch of batches) {
-    if (isCancelled) return;
+  for (const [index, chunk] of businessChunks.entries()) {
+    if (isCancelled) break;
+    
+    console.log(`Processing batch ${index + 1} of ${totalBatches}...`);
 
-    const promises = batch.map(async (business) => {
-      if (isCancelled) return;
-
-      let page = null;
-      try {
-        // First try to get email from Google Maps URL if no website is available
-        let websiteUrl = business.bizWebsite;
+    await Promise.all(
+      chunk.map(async (biz) => {
+        if (isCancelled) return;
         
-        if (!websiteUrl && business.googleUrl) {
-          // Extract website from Google Maps page
-          page = await browserMaps.newPage();
-          await page.goto(business.googleUrl, { 
-            waitUntil: "networkidle2", 
-            timeout: 20000 
+        if (!biz.bizWebsite || !biz.bizWebsite.startsWith("http")) {
+          biz.email = "No information";
+          processedCount++;
+          event.reply("scraper-progress", { 
+            current: processedCount, 
+            total: businesses.length,
+            business: biz.storeName 
           });
-          
-          // Look for website link on Google Maps page
-          const websiteLink = await page.evaluate(() => {
-            const websiteButton = document.querySelector('a[data-value="Website"]');
-            return websiteButton ? websiteButton.href : null;
-          });
-          
-          if (websiteLink) {
-            websiteUrl = websiteLink;
-            business.bizWebsite = websiteLink; // Update the business object
-          }
-          
-          await page.close();
-          page = null;
+          return;
         }
 
-        if (websiteUrl) {
-          page = await browserMaps.newPage();
-          
-          // Enhanced browser settings to avoid detection
+        try {
+          const page = await browser.newPage();
           await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-          await page.setViewport({ width: 1366, height: 768 });
           
-          // Set extra headers to appear more legitimate
-          await page.setExtraHTTPHeaders({
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+          await page.goto(biz.bizWebsite, {
+            waitUntil: "networkidle2",
+            timeout: 120000,
           });
+          await delay(3000);
           
-          await page.goto(websiteUrl, { 
-            waitUntil: "networkidle0", 
-            timeout: 25000 
-          });
+          const pageHtml = await page.content();
 
-          // Wait longer for dynamic content and JavaScript to load
-          await new Promise(resolve => setTimeout(resolve, 4000));
-
-          // Try to navigate to contact page if no email is found initially
-          let emailData = await page.evaluate(() => {
-            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-            const text = document.body.innerText;
-            const html = document.body.innerHTML;
+          // Enhanced email regex including obfuscated emails
+          const emailMatches = pageHtml.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|[a-zA-Z0-9._%+-]+\s?\[at\]\s?[a-zA-Z0-9.-]+\s?\[dot\]\s?[a-zA-Z]{2,}/g);
+          
+          if (emailMatches) {
+            const normalizedEmails = emailMatches.map((email) =>
+              email.replace(/\[at\]/g, "@").replace(/\[dot\]/g, ".").toLowerCase()
+            );
             
-            // Find emails in text content
-            const textEmails = text.match(emailRegex) || [];
-            
-            // Find emails in HTML (including mailto links)
-            const mailtoLinks = Array.from(document.querySelectorAll('a[href*="mailto:"]'))
-              .map(link => link.href.replace('mailto:', '').split('?')[0]);
-            
-            // Find emails in HTML content
-            const htmlEmails = html.match(emailRegex) || [];
-            
-            // Combine and deduplicate emails
-            const allEmails = [...new Set([...textEmails, ...mailtoLinks, ...htmlEmails])];
-            
-            // Filter out common non-business emails
-            const filteredEmails = allEmails.filter(email => {
-              const lowerEmail = email.toLowerCase();
-              return !lowerEmail.includes('noreply') && 
-                     !lowerEmail.includes('no-reply') &&
-                     !lowerEmail.includes('donotreply') &&
-                     !lowerEmail.includes('example.com') &&
-                     !lowerEmail.includes('test@') &&
-                     !lowerEmail.includes('sample@') &&
-                     email.length < 50;
+            // Filter out invalid emails
+            const validEmails = normalizedEmails.filter(email => {
+              return email.length > 5 && 
+                     email.length < 60 &&
+                     email.includes('@') &&
+                     email.includes('.') &&
+                     !email.includes('noreply') && 
+                     !email.includes('no-reply') &&
+                     !email.includes('donotreply') &&
+                     !email.includes('example.com') &&
+                     !email.includes('test@') &&
+                     !email.includes('sample@') &&
+                     !email.includes('placeholder') &&
+                     !email.includes('your-email') &&
+                     !email.includes('youremail') &&
+                     !email.includes('email@domain') &&
+                     !email.includes('name@domain') &&
+                     !email.includes('user@example');
             });
             
-            // Prioritize business-relevant emails
-            const priorityEmails = filteredEmails.filter(email => {
-              const lowerEmail = email.toLowerCase();
-              return lowerEmail.includes('info') || 
-                     lowerEmail.includes('contact') || 
-                     lowerEmail.includes('hello') ||
-                     lowerEmail.includes('admin') ||
-                     lowerEmail.includes('support') ||
-                     lowerEmail.includes('sales') ||
-                     lowerEmail.includes('inquiry');
-            });
-            
-            return priorityEmails.length > 0 ? priorityEmails[0] : (filteredEmails.length > 0 ? filteredEmails[0] : null);
-          });
-
-          // If no email found, try to find and visit contact page
-          if (!emailData) {
-            try {
-              const contactPageFound = await page.evaluate(() => {
-                const contactLinks = Array.from(document.querySelectorAll('a'))
-                  .filter(link => {
-                    const text = link.textContent.toLowerCase();
-                    const href = link.href.toLowerCase();
-                    return (text.includes('contact') || text.includes('about') || 
-                           href.includes('contact') || href.includes('about')) &&
-                           link.href.startsWith('http');
-                  });
-                
-                if (contactLinks.length > 0) {
-                  return contactLinks[0].href;
-                }
-                return null;
-              });
-
-              if (contactPageFound) {
-                await page.goto(contactPageFound, { 
-                  waitUntil: "networkidle0", 
-                  timeout: 20000 
-                });
-                
-                await new Promise(resolve => setTimeout(resolve, 3000));
-
-                // Try email extraction again on contact page
-                emailData = await page.evaluate(() => {
-                  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-                  const text = document.body.innerText;
-                  const html = document.body.innerHTML;
-                  
-                  const textEmails = text.match(emailRegex) || [];
-                  const mailtoLinks = Array.from(document.querySelectorAll('a[href*="mailto:"]'))
-                    .map(link => link.href.replace('mailto:', '').split('?')[0]);
-                  const htmlEmails = html.match(emailRegex) || [];
-                  
-                  const allEmails = [...new Set([...textEmails, ...mailtoLinks, ...htmlEmails])];
-                  
-                  const filteredEmails = allEmails.filter(email => {
-                    const lowerEmail = email.toLowerCase();
-                    return !lowerEmail.includes('noreply') && 
-                           !lowerEmail.includes('no-reply') &&
-                           !lowerEmail.includes('donotreply') &&
-                           !lowerEmail.includes('example.com') &&
-                           !lowerEmail.includes('test@') &&
-                           !lowerEmail.includes('sample@') &&
-                           email.length < 50;
-                  });
-                  
-                  const priorityEmails = filteredEmails.filter(email => {
-                    const lowerEmail = email.toLowerCase();
-                    return lowerEmail.includes('info') || 
-                           lowerEmail.includes('contact') || 
-                           lowerEmail.includes('hello') ||
-                           lowerEmail.includes('admin') ||
-                           lowerEmail.includes('support') ||
-                           lowerEmail.includes('sales') ||
-                           lowerEmail.includes('inquiry');
-                  });
-                  
-                  return priorityEmails.length > 0 ? priorityEmails[0] : (filteredEmails.length > 0 ? filteredEmails[0] : null);
-                });
-              }
-            } catch (contactPageError) {
-              console.log(`Could not access contact page for ${business.storeName}`);
+            if (validEmails.length > 0) {
+              const domain = new URL(biz.bizWebsite).hostname.replace("www.", "");
+              const prioritizedEmail = validEmails.find((email) => email.includes(domain)) || validEmails[0];
+              biz.email = prioritizedEmail;
+            } else {
+              biz.email = await searchContactPages(page, biz);
             }
+          } else {
+            biz.email = await searchContactPages(page, biz);
           }
 
-          business.email = emailData || "No info";
           await page.close();
-          page = null;
-        } else {
-          business.email = "No info";
+        } catch (error) {
+          console.error(`Error scraping email for ${biz.storeName}:`, error.message);
+          biz.email = "No information";
         }
-      } catch (error) {
-        console.error(`Error scraping email for ${business.storeName}:`, error.message);
-        business.email = "No info";
+
+        processedCount++;
+        event.reply("scraper-progress", { 
+          current: processedCount, 
+          total: businesses.length,
+          business: biz.storeName 
+        });
+      })
+    );
+
+    const batchesRemaining = totalBatches - (index + 1);
+    const secondsLeft = batchesRemaining * estimatedTimePerBatch;
+    const minutesLeft = Math.floor(secondsLeft / 60);
+    const extraSeconds = secondsLeft % 60;
+
+    event.reply(
+      "scraper-status",
+      `Batch ${index + 1}/${totalBatches} completed. Estimated time left: ${minutesLeft}m ${extraSeconds}s`
+    );
+
+    if (index < totalBatches - 1) {
+      await delay(60000);
+    }
+  }
+
+  await browser.close();
+}
+
+async function searchContactPages(page, biz) {
+  try {
+    // Look for contact and about page links
+    const links = await page.$$eval("a", (anchors) =>
+      anchors.map((a) => ({
+        href: a.href,
+        text: a.textContent.toLowerCase()
+      })).filter((link) => {
+        const href = link.href.toLowerCase();
+        const text = link.text;
+        return (text.includes("contact") || 
+               text.includes("about") ||
+               text.includes("reach") ||
+               text.includes("get in touch") ||
+               href.includes("contact") ||
+               href.includes("about") ||
+               href.includes("/contact-us") ||
+               href.includes("/contact-me") ||
+               href.includes("/about-us")) &&
+               link.href.startsWith("http");
+      }).map(link => link.href).slice(0, 3)
+    );
+
+    for (const link of links) {
+      try {
+        await page.goto(link, { 
+          waitUntil: "networkidle2", 
+          timeout: 120000 
+        });
+        await delay(2000);
         
-        if (page) {
-          try {
-            await page.close();
-          } catch (closeError) {
-            console.error("Error closing page:", closeError.message);
+        const contactPageHtml = await page.content();
+        const contactEmailMatches = contactPageHtml.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+        
+        if (contactEmailMatches) {
+          const validContactEmails = contactEmailMatches.filter(email => {
+            const lowerEmail = email.toLowerCase();
+            return email.length > 5 && 
+                   email.length < 60 &&
+                   !lowerEmail.includes('noreply') && 
+                   !lowerEmail.includes('no-reply') &&
+                   !lowerEmail.includes('donotreply') &&
+                   !lowerEmail.includes('example.com') &&
+                   !lowerEmail.includes('test@') &&
+                   !lowerEmail.includes('sample@');
+          });
+          
+          if (validContactEmails.length > 0) {
+            return validContactEmails[0];
           }
         }
+      } catch (e) {
+        console.log(`Failed to load contact/about page: ${link}`);
       }
+    }
 
-      processedCount++;
-      event.reply("scraper-progress", { 
-        current: processedCount, 
-        total: businesses.length,
-        business: business.storeName 
-      });
-    });
-
-    await Promise.all(promises);
-
-    // Longer delay between batches for more respectful scraping
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    return "No information";
+  } catch (error) {
+    console.log(`Error searching contact pages for ${biz.storeName}`);
+    return "No information";
   }
 }
 
@@ -325,13 +286,19 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
   isCancelled = false;
   try {
     console.log("Launching Google Maps Puppeteer...");
+    const chromePath = await getChromePath();
+    
     browserMaps = await puppeteerExtra.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      headless: true,
+      executablePath: chromePath,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      protocolTimeout: 300000,
     });
 
     const page = await browserMaps.newPage();
     await page.setViewport({ width: 1280, height: 800 });
+    page.setDefaultTimeout(300000);
+    page.setDefaultNavigationTimeout(60000);
 
     await page.goto(`https://www.google.com/maps/search/${encodeURIComponent(GOOGLE_MAPS_QUERY)}`, {
       waitUntil: "networkidle2",
@@ -350,7 +317,6 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
       return;
     }
     
-    // Get a count of businesses found after scrolling
     const businessCount = await page.evaluate(() => {
       return document.querySelectorAll("a[href*='/maps/place/']").length;
     });
@@ -367,10 +333,8 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
       const parent = $(el).closest("div");
       const url = $(el).attr("href");
       
-      // More comprehensive website extraction
       let website = parent.find('a[data-value="Website"]').attr("href");
       if (!website) {
-        // Look for other potential website links
         website = parent.find('a[href^="http"]:not([href*="google.com"]):not([href*="maps"]):not([href*="goo.gl"])').first().attr("href");
       }
       
@@ -378,11 +342,9 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
       const address = parent.find("div.fontBodyMedium").first().text().trim();
 
       let rawText = parent.text();
-      // Enhanced phone number regex to catch more formats
       let phoneMatch = rawText.match(/(\+?\d{1,4}[-.\s]?)?\(?\d{3,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}|\+63\s?\d{2,3}[\s-]?\d{3}[\s-]?\d{4}|\(\d{3}\)\s?\d{3}-\d{4}/g);
       let phone = phoneMatch ? phoneMatch.join(", ") : "No information";
 
-      // Only add businesses with valid names
       if (storeName && storeName.trim().length > 0) {
         businesses.push({
           storeName: storeName.trim(),

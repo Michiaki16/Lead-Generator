@@ -1,0 +1,542 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    padding-top: 50px;
+    background-image: url("src/img/bg9.png");
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    color: white;
+}
+
+.background-animation {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    background: radial-gradient(circle, rgba(255, 215, 0, 0.2) 10%, transparent 70%);
+    animation: glowing 5s infinite alternate;
+}
+
+@keyframes glowing {
+    0% { filter: blur(5px); opacity: 0.6; }
+    100% { filter: blur(10px); opacity: 1; }
+}
+
+.border-frame {
+    position: absolute;
+    top: 2%;
+    left: 2%;
+    width: 96%;
+    height: 96%;
+    border: 3px solid gold;
+    pointer-events: none;
+    box-shadow: 0 0 10px gold, 0 0 20px rgba(255, 215, 0, 0.7), 0 0 30px rgba(255, 215, 0, 0.5);
+    animation: glow 1.5s infinite alternate;
+}
+
+@keyframes glow {
+    0% {
+        box-shadow: 0 0 10px gold, 0 0 20px rgba(255, 215, 0, 0.7), 0 0 30px rgba(255, 215, 0, 0.5);
+    }
+    100% {
+        box-shadow: 0 0 15px gold, 0 0 25px rgba(255, 215, 0, 0.9), 0 0 35px rgba(255, 215, 0, 0.7);
+    }
+}
+
+.search-container {
+    width: 90%;
+    max-width: 800px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    margin-bottom: 5px; /* Decreased from 20px to 5px */
+    position: relative;
+    z-index: 1000; /* Ensure the search bar is always on top */
+    top: -25px; /* Move upwards by 25px */
+}
+
+.search-bar {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    align-items: center;
+    border: 2px solid #FFD700;
+    border-radius: 50px;
+    padding: 10px 20px;
+    background-color: black;
+    box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
+    position: relative;
+}
+.custom-button {
+    background-color: black;
+    color: gold;
+    border: gold 1px solid;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border-radius: 5px;
+    width: auto;
+    box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
+  }
+  
+  .custom-button:hover {
+    background-color: gold;
+    color: black;
+    border: gold 1px solid;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border-radius: 5px;
+    width: auto;
+    box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
+  }
+  
+.search-bar input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 18px;
+    color: white;
+    padding-right: 40px;
+    pointer-events: auto; /* Ensure input is clickable */
+}
+
+.search-bar input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.search-icon {
+    position: absolute;
+    right: 15px;
+    font-size: 20px;
+    color: gold;
+    cursor: pointer;
+}
+
+.table-container {
+    width: 90%;
+    max-width: 90%;
+    height: 70%;
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 2px solid gold;
+    background-color: rgba(0, 0, 0, 0.6);
+    position: relative;
+    z-index: 10;
+    margin-top: 0px !important; /* Remove extra space above table */
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background: transparent;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+th, td {
+    border: 1px solid gold;
+    padding: 10px;
+    text-align: left;
+    color: white;
+}
+
+th {
+    background-color: transparent;
+    color: white;
+    font-weight: bold;
+    border-bottom: 2px solid gold;
+}
+.button-container{
+    margin-top: 20px;
+}
+
+.btn {
+    background-color: black;
+    color: gold;
+    border: gold 1px solid;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border-radius: 5px;
+    width: auto;
+    box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
+}
+
+.btn:disabled {
+    background-color: grey;
+    cursor: not-allowed;
+}
+
+.btn:hover:not(:disabled) {
+    background-color: yellow;
+}
+
+.btn:enabled {
+    background-color: black;
+    color: gold;
+    cursor: pointer;
+}
+
+.btn:enabled:hover {
+    background-color: gold;
+    color: black;
+}
+
+#importIcon {
+    font-size: 24px;
+    color: gold;
+    cursor: pointer;
+    margin-top: 10px;
+    padding: 10px;
+    border: 2px solid gold;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: black;
+    box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
+}
+
+#importIcon:hover {
+    background-color: gold;
+    color: black;
+}
+
+.centered-section {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    background-color: rgba(0, 0, 0, 0.6);
+    padding: 30px 40px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    color: white;   
+}
+
+.centered-section h1 {    
+    font-size: 4rem; /* Increase font size */
+    font-family: 'Playfair Display'; /* Elegant and classy font */
+    font-weight: 700;
+    text-align: center;
+    color: #ffffff;
+    text-shadow: 0 0 5px gold, 0 0 10px gold, 0 0 10px gold;
+    /* animation: glow 2s infinite alternate; */
+}
+
+.centered-section h1 .highlight {
+    color: rgb(236, 212, 71);
+    font-family: 'Playfair Display';
+
+}
+
+/* @keyframes glow {
+    0% {
+        text-shadow: 0 0 10px gold, 0 0 20px gold, 0 0 30px gold;
+    }
+    100% {
+        text-shadow: 0 0 20px gold, 0 0 30px gold, 0 0 40px gold;
+    }
+} */
+
+#googleAuthBtn {
+    background-color: #4285F4; /* Google blue */
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.3s ease;
+}
+
+#googleAuthBtn:hover {
+    background-color: #357AE8; /* Darker Google blue */
+}
+
+#googleAuthBtn img {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+}
+
+#importFileBtn {
+    background-color: black;
+    color: gold;
+    border: gold 1px solid;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border-radius: 5px;
+    width: auto;
+    box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
+}
+
+#importFileBtn:hover {
+    background-color: yellow;
+}
+.user-profile {
+    display: flex;
+    align-items: center;
+    /* background-color: #f5f5f5; */
+    padding: 10px;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.user-profile img {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+.user-profile .user-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-profile .user-info .name {
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+}
+
+.user-profile .user-info .email {
+    font-size: 12px;
+    color: whitesmoke;
+}
+
+#googleAuthBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: black;
+    color: gold;
+    border: 1px solid gold;
+    border-radius: 5px;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#googleAuthBtn:hover {
+    background-color: gold;
+    color: black;
+}
+
+#googleAuthBtn img {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+#logoutBtn {
+    display: inline-block;
+    background-color: black;
+    color: gold;
+    border: 2px solid gold;
+    border-radius: 5px;
+    padding: 10px 15px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-left: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#logoutBtn:hover {
+    background-color: gold;
+    color: black;
+}
+
+#importFileBtn {
+    background-color: black;
+    color: gold;
+    border: gold 1px solid;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border-radius: 5px;
+    box-shadow: 0 4px 10px rgba(218, 165, 32, 0.5);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#importFileBtn:hover {
+    background-color: gold;
+    color: black;
+}
+
+#userProfile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px; /* Match the height of the Google sign-in button */
+}
+
+#sendEmailsBtn:enabled {
+    background-color: black;
+    border: 1px solid gold;
+    color: gold;
+    cursor: pointer;
+}
+
+/* Updated progress bar styles to match the second picture */
+#progressBarContainer {
+    display: none;
+    width: 100%;
+    background: #ddd;
+    border-radius: 25px;
+    overflow: hidden;
+    margin-top: 10px;
+    position: relative;
+    height: 30px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+#progressBar {
+    height: 100%;
+    background: linear-gradient(to right, gold, black);
+    width: 0%;
+    border-radius: 25px;
+    transition: width 0.5s;
+}
+
+#progressBarContainer::after {
+    content: "loading...";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 16px;
+    color: black;
+    font-weight: bold;
+}
+
+#cancelButton {
+    position: absolute;
+    right: 10px;
+    top: 2px;
+    background: red;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+/* From Uiverse.io by andrew-demchenk0 */ 
+.button {
+    position: relative;
+    width: 150px;
+    height: 40px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    border: 1px solid red ;
+    background-color: red;
+  }
+  
+  .button, .button__icon, .button__text {
+    transition: all 0.3s;
+  }
+  
+  .button .button__text {
+    transform: translateX(30px);
+    color: #fff;
+    font-weight: 600;
+  }
+  
+  .button .button__icon {
+    position: absolute;
+    transform: translateX(109px);
+    height: 100%;
+    width: 39px;
+    background-color: red;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .button .svg {
+    width: 30px;
+    stroke: #fff;
+  }
+  
+  .button:hover {
+    background: red;
+  }
+  
+  .button:hover .button__text {
+    color: transparent;
+  }
+  
+  .button:hover .button__icon {
+    width: 148px;
+    transform: translateX(0);
+  }
+  
+  .button:active .button__icon {
+    background-color: black;
+  }
+  
+  .button:active {
+    border: 1px solid black;
+  }
