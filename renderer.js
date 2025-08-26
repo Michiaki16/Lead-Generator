@@ -236,16 +236,27 @@ function sendEmails() {
     // Use default template if no custom template is set
     let currentTemplate = emailTemplate.trim();
     if (!currentTemplate) {
-        currentTemplate = `Good Day, {companyName}!
+        currentTemplate = `Good day, {companyName}!
 
-We hope this message finds you well. We are reaching out to explore potential business opportunities and discuss how we can support your company's growth.
+Your people are the most valuable asset. No company can enjoy continued success without a highly motivated and productive workforce.
 
-Your business has caught our attention, and we believe there may be valuable synergies between our organizations. We would love to schedule a brief conversation to learn more about your needs and share how our services might benefit {companyName}.
+We are a company committed to helping individuals secure their financial health. Financial security spells peace of mind and can prove to be your key to keeping your employees performing at their best, always.
 
-Please let us know if you would be interested in a short discussion at your convenience.
+Pru Life UK is the number one life insurer in the Philippines, a name that built the retirement premium bonds both well-liked and according to the Insurance Commission. Established in 1996, Pru Life UK has expanded its reach to over 100 branches in the Philippines, with the largest life insurance agency force of more than 43,000 licensed agents as of December 2024.
 
-Best regards,
-Your Name`;
+The first step to gaining financial security is our very own Financial Wellness program. It is a simple process that will allow your employees to look at their financial conditions and identify address their financial requirements, from protection to savings as well as investment. It will help alleviate much of the stress and worry that employees may experience in their current or future financial situation and will help them for next 30 years of their lives!
+
+In this light, we would like to request for a meeting with you via your preferred platform to propose a free financial planning seminar for your employees. In this program, we will share tips on protecting income and improving financial stability by promoting financial literacy for your employees and business.
+
+We are looking forward to having the opportunity to enlighten your employees further on the benefits of financial planning. Be with them in their journey as they take charge of their future.
+
+Sincerely yours,
+
+Lydelyn Romero Quitong
+Blue Chalcedony Quartz
+Licensed insurance agent
+Certified Estate and Wealth Planner
+Junior Unit Manager`;
     }
 
     const rows = document.querySelectorAll("#resultsTable tbody tr");
@@ -401,13 +412,19 @@ function openEmailTemplateModal() {
 
     // Set default email content if empty
     if (!document.getElementById('emailTemplateText').value) {
-        document.getElementById('emailTemplateText').value = `Good Day, {companyName}!
+        document.getElementById('emailTemplateText').value = `Good day, {companyName}!
 
-We hope this message finds you well. We are reaching out to explore potential business opportunities and discuss how we can support your company's growth.
+Your people are the most valuable asset. No company can enjoy continued success without a highly motivated and productive workforce.
 
-Your business has caught our attention, and we believe there may be valuable synergies between our organizations. We would love to schedule a brief conversation to learn more about your needs and share how our services might benefit {companyName}.
+We are a company committed to helping individuals secure their financial health. Financial security spells peace of mind and can prove to be your key to keeping your employees performing at their best, always.
 
-Please let us know if you would be interested in a short discussion at your convenience.
+Pru Life UK is the number one life insurer in the Philippines, a name that built the retirement premium bonds both well-liked and according to the Insurance Commission. Established in 1996, Pru Life UK has expanded its reach to over 100 branches in the Philippines, with the largest life insurance agency force of more than 43,000 licensed agents as of December 2024.
+
+The first step to gaining financial security is our very own Financial Wellness program. It is a simple process that will allow your employees to look at their financial conditions and identify address their financial requirements, from protection to savings as well as investment. It will help alleviate much of the stress and worry that employees may experience in their current or future financial situation and will help them for next 30 years of their lives!
+
+In this light, we would like to request for a meeting with you via your preferred platform to propose a free financial planning seminar for your employees. In this program, we will share tips on protecting income and improving financial stability by promoting financial literacy for your employees and business.
+
+We are looking forward to having the opportunity to enlighten your employees further on the benefits of financial planning. Be with them in their journey as they take charge of their future.
 
 Sincerely yours,
 
