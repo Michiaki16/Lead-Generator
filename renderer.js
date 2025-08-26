@@ -284,7 +284,7 @@ Your Name`;
         document.getElementById('sendEmailsBtn').disabled = true;
 
         // Retrieve email subject from localStorage
-        const emailSubject = localStorage.getItem('emailSubject') || "Business Inquiry for {companyName}";
+        const emailSubject = localStorage.getItem('emailSubject') || "PRU LIFE UK FINANCIAL WELLNESS AND RETIREMENT PROGRAM PROPOSAL";
 
         emailData.forEach(data => {
           const emailSubjectProcessed = emailSubject

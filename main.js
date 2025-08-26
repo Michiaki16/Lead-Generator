@@ -193,7 +193,7 @@ async function sendEmailWithRetry(gmail, emailData, template, maxRetries = 3, ba
         .replace(/{address}/g, emailData.address || "")
         .replace(/{website}/g, emailData.website || "");
 
-      let emailSubject = (template.subject || "Business Inquiry for {companyName}");
+      let emailSubject = (template.subject || "PRU LIFE UK FINANCIAL WELLNESS AND RETIREMENT PROGRAM PROPOSAL");
       const emailSubjectProcessed = emailSubject
         .replace(/{companyName}/g, emailData.companyName || "")
         .replace(/{email}/g, emailData.email || "")
@@ -230,7 +230,7 @@ async function sendEmailWithRetry(gmail, emailData, template, maxRetries = 3, ba
         </html>`;
 
       const emailMessage = [
-        `To: ${data.email}`,
+        `To: ${emailData.email}`,
         `Subject: ${emailSubjectProcessed}`,
         `Content-Type: text/html; charset="UTF-8"`,
         '',
