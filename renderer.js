@@ -401,7 +401,21 @@ function openEmailTemplateModal() {
 
     // Set default email content if empty
     if (!document.getElementById('emailTemplateText').value) {
-        document.getElementById('emailTemplateText').value = "Good Day, {companyName}!";
+        document.getElementById('emailTemplateText').value = `Good Day, {companyName}!
+
+We hope this message finds you well. We are reaching out to explore potential business opportunities and discuss how we can support your company's growth.
+
+Your business has caught our attention, and we believe there may be valuable synergies between our organizations. We would love to schedule a brief conversation to learn more about your needs and share how our services might benefit {companyName}.
+
+Please let us know if you would be interested in a short discussion at your convenience.
+
+Sincerely yours,
+
+Lydelyn Romero Quitong
+Blue Chalcedony Quartz
+Licensed insurance agent
+Certified Estate and Wealth Planner
+Junior Unit Manager`; {companyName}!";
     }
 }
 

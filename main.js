@@ -1,7 +1,6 @@
-
 const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
-const { searchGoogleMaps, cancelScraping } = require("./googleMaps"); 
+const { searchGoogleMaps, cancelScraping } = require("./googleMaps");
 const fs = require("fs");
 const xlsx = require("xlsx");
 const { google } = require('googleapis');
@@ -19,21 +18,21 @@ let emailDB = null;
 
 app.whenReady().then(() => {
   emailDB = new EmailDatabase();
-  
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     icon: path.join(__dirname, "/src/img/bcdq.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      nodeIntegration: false, 
-      contextIsolation: true, 
+      nodeIntegration: false,
+      contextIsolation: true,
     },
   });
 
   mainWindow.loadFile("index.html");
   mainWindow.maximize();
-  mainWindow.setMenuBarVisibility(false); 
+  mainWindow.setMenuBarVisibility(false);
 });
 
 ipcMain.on("run-scraper", async (event, query) => {
@@ -78,9 +77,9 @@ const authUrl = oauth2Client.generateAuthUrl({
     'https://www.googleapis.com/auth/userinfo.profile',
     'https://www.googleapis.com/auth/userinfo.email'
   ],
-  prompt: 'consent select_account' 
+  prompt: 'consent select_account'
 });
-    
+
 
     // Close previous server if still running
     if (authServer) {
@@ -90,16 +89,16 @@ const authUrl = oauth2Client.generateAuthUrl({
 
     authServer = http.createServer(async (req, res) => {
       const { code } = url.parse(req.url, true).query;
-      
+
       if (code) {
         try {
           const { tokens } = await oauth2Client.getToken(code);
           oauth2Client.setCredentials(tokens);
-          
+
           const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
           const { data: userInfo } = await oauth2.userinfo.get();
           userProfile = userInfo;
-          
+
 res.writeHead(200, { 'Content-Type': 'text/html' });
 res.end(`
   <html>
@@ -156,7 +155,7 @@ res.end(`
     </body>
   </html>
 `);
-          
+
           event.reply("auth-success", userProfile);
           authServer.close();
         } catch (error) {
@@ -202,12 +201,40 @@ async function sendEmailWithRetry(gmail, emailData, template, maxRetries = 3, ba
         .replace(/{address}/g, emailData.address || "")
         .replace(/{website}/g, emailData.website || "");
 
+      // Convert plain text to HTML with proper formatting
+      const htmlContent = emailContent
+        .replace(/\n/g, '<br>')
+        .replace(/\r\n/g, '<br>')
+        .replace(/\r/g, '<br>');
+
+      // Add email footer
+      const footerImagePath = path.join(__dirname, 'src/img/Emailfooter2.jpg');
+      let footerImage = '';
+
+      try {
+        const footerImageBuffer = fs.readFileSync(footerImagePath);
+        const footerImageBase64 = footerImageBuffer.toString('base64');
+        footerImage = `<br><br><div style="text-align: center; margin-top: 20px;"><img src="data:image/jpeg;base64,${footerImageBase64}" alt="Email Footer" style="max-width: 300px; height: auto;"></div>`;
+      } catch (error) {
+        console.log('Footer image not found, continuing without footer');
+      }
+
+      const fullHtmlContent = `
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            ${htmlContent}
+            ${footerImage}
+          </div>
+        </body>
+        </html>`;
+
       const emailMessage = [
-        `To: ${emailData.email}`,
+        `To: ${data.email}`,
         `Subject: ${emailSubjectProcessed}`,
         `Content-Type: text/html; charset="UTF-8"`,
         '',
-        emailContent
+        fullHtmlContent
       ].join('\n');
 
       const encodedEmail = Buffer.from(emailMessage)
@@ -248,8 +275,8 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
     const validEmails = emailData.filter(data => {
       // Basic email validation
       const email = data.email;
-      return email && 
-             email !== "No info" && 
+      return email &&
+             email !== "No info" &&
              email !== "Fetching..." &&
              email.includes('@') &&
              email.includes('.') &&
@@ -268,7 +295,7 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
 
       try {
         const result = await sendEmailWithRetry(gmail, data, template);
-        
+
         if (result.success) {
           // Save to database
           try {
@@ -287,17 +314,17 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
           sentCount++;
           console.log(`✅ Email sent successfully to ${data.email}`);
         }
-        
+
         event.reply("email-progress", { sent: sentCount, total: totalEmails, current: data.companyName });
-        
+
         // Rate limiting: Wait between emails (increased from 1.5s to 3s)
         const delayTime = 3000 + Math.random() * 2000; // 3-5 seconds random delay
         await new Promise(resolve => setTimeout(resolve, delayTime));
-        
+
       } catch (emailError) {
         failedCount++;
         console.error(`❌ Failed to send email to ${data.email}:`, emailError.message);
-        
+
         // Longer delay after failures
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
