@@ -3,10 +3,10 @@ const path = require("path");
 const { searchGoogleMaps, cancelScraping } = require("./googleMaps");
 const fs = require("fs");
 const xlsx = require("xlsx");
-const { google } = require('googleapis');
-const http = require('http');
-const url = require('url');
-const EmailDatabase = require('./database');
+const { google } = require("googleapis");
+const http = require("http");
+const url = require("url");
+const EmailDatabase = require("./database");
 
 let mainWindow;
 let oauth2Client = null;
@@ -56,34 +56,34 @@ ipcMain.on("cancel-scraper", async (event) => {
   }
 });
 
-    oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID = '82150396052-rnvsou8p8gp54cf235gc59eagtcgie9n.apps.googleusercontent.com',
-      process.env.GOOGLE_CLIENT_SECRET = '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',
-      'http://localhost:3000/oauth2callback'
-    );
-
+oauth2Client = new google.auth.OAuth2(
+  (process.env.GOOGLE_CLIENT_ID =
+    "82150396052-rnvsou8p8gp54cf235gc59eagtcgie9n.apps.googleusercontent.com"),
+  (process.env.GOOGLE_CLIENT_SECRET = "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"),
+  "http://localhost:3000/oauth2callback"
+);
 
 ipcMain.on("google-auth", async (event) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-      throw new Error('Google credentials not configured');
+      throw new Error("Google credentials not configured");
     }
 
-
-const authUrl = oauth2Client.generateAuthUrl({
-  access_type: 'offline',
-  scope: [
-    'https://www.googleapis.com/googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/userinfo.email'
-  ],
-  prompt: 'consent select_account'
-});
-
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      scope: [
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/userinfo.email",
+      ],
+      prompt: "consent select_account",
+    });
 
     // Close previous server if still running
     if (authServer) {
-      try { authServer.close(); } catch (e) {}
+      try {
+        authServer.close();
+      } catch (e) {}
       authServer = null;
     }
 
@@ -95,12 +95,12 @@ const authUrl = oauth2Client.generateAuthUrl({
           const { tokens } = await oauth2Client.getToken(code);
           oauth2Client.setCredentials(tokens);
 
-          const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+          const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
           const { data: userInfo } = await oauth2.userinfo.get();
           userProfile = userInfo;
 
-res.writeHead(200, { 'Content-Type': 'text/html' });
-res.end(`
+          res.writeHead(200, { "Content-Type": "text/html" });
+          res.end(`
   <html>
     <head>
       <title>Authentication Successful</title>
@@ -159,16 +159,17 @@ res.end(`
           event.reply("auth-success", userProfile);
           authServer.close();
         } catch (error) {
-          res.writeHead(400, { 'Content-Type': 'text/html' });
-          res.end('<h1>Authentication failed. Please try again.</h1>');
+          res.writeHead(400, { "Content-Type": "text/html" });
+          res.end("<h1>Authentication failed. Please try again.</h1>");
           event.reply("auth-error", error.message);
           authServer.close();
         }
       }
     });
 
-    const { exec } = require('child_process');
-    const chromePath = '"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"'; // Default Chrome path
+    const { exec } = require("child_process");
+    const chromePath =
+      '"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"'; // Default Chrome path
     authServer.listen(3000, () => {
       exec(`${chromePath} "${authUrl}"`, (error) => {
         if (error) {
@@ -183,7 +184,13 @@ res.end(`
 });
 
 // Email sending with rate limiting and retry logic
-async function sendEmailWithRetry(gmail, emailData, template, maxRetries = 3, baseDelay = 5000) {
+async function sendEmailWithRetry(
+  gmail,
+  emailData,
+  template,
+  maxRetries = 3,
+  baseDelay = 5000
+) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       let emailContent = (template.body || template)
@@ -193,7 +200,9 @@ async function sendEmailWithRetry(gmail, emailData, template, maxRetries = 3, ba
         .replace(/{address}/g, emailData.address || "")
         .replace(/{website}/g, emailData.website || "");
 
-      let emailSubject = (template.subject || "PRU LIFE UK FINANCIAL WELLNESS AND RETIREMENT PROGRAM PROPOSAL");
+      let emailSubject =
+        template.subject ||
+        "PRU LIFE UK FINANCIAL WELLNESS AND RETIREMENT PROGRAM PROPOSAL";
       const emailSubjectProcessed = emailSubject
         .replace(/{companyName}/g, emailData.companyName || "")
         .replace(/{email}/g, emailData.email || "")
@@ -203,20 +212,20 @@ async function sendEmailWithRetry(gmail, emailData, template, maxRetries = 3, ba
 
       // Convert plain text to HTML with proper formatting
       const htmlContent = emailContent
-        .replace(/\n/g, '<br>')
-        .replace(/\r\n/g, '<br>')
-        .replace(/\r/g, '<br>');
+        .replace(/\n/g, "<br>")
+        .replace(/\r\n/g, "<br>")
+        .replace(/\r/g, "<br>");
 
       // Add email footer
-      const footerImagePath = path.join(__dirname, 'src/img/Emailfooter2.jpg');
-      let footerImage = '';
+      const footerImagePath = path.join(__dirname, "src/img/Emailfooter2.jpg");
+      let footerImage = "";
 
       try {
         const footerImageBuffer = fs.readFileSync(footerImagePath);
-        const footerImageBase64 = footerImageBuffer.toString('base64');
+        const footerImageBase64 = footerImageBuffer.toString("base64");
         footerImage = `<br><br><div style="text-align: center; margin-top: 20px;"><img src="data:image/jpeg;base64,${footerImageBase64}" alt="Email Footer" style="max-width: 300px; height: auto;"></div>`;
       } catch (error) {
-        console.log('Footer image not found, continuing without footer');
+        console.log("Footer image not found, continuing without footer");
       }
 
       const fullHtmlContent = `
@@ -233,27 +242,33 @@ async function sendEmailWithRetry(gmail, emailData, template, maxRetries = 3, ba
         `To: ${emailData.email}`,
         `Subject: ${emailSubjectProcessed}`,
         `Content-Type: text/html; charset="UTF-8"`,
-        '',
-        fullHtmlContent
-      ].join('\n');
+        `MIME-Version: 1.0`,
+        "",
+        fullHtmlContent,
+      ].join("\r\n");
 
       const encodedEmail = Buffer.from(emailMessage)
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
 
       await gmail.users.messages.send({
-        userId: 'me',
-        requestBody: { raw: encodedEmail }
+        userId: "me",
+        requestBody: { raw: encodedEmail },
       });
 
       return { success: true, subject: emailSubjectProcessed };
     } catch (error) {
-      if (error.message.includes('Too many concurrent requests') && attempt < maxRetries) {
+      if (
+        error.message.includes("Too many concurrent requests") &&
+        attempt < maxRetries
+      ) {
         const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
-        console.log(`Rate limit hit for ${emailData.email}, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        console.log(
+          `Rate limit hit for ${emailData.email}, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
       throw error;
@@ -269,23 +284,28 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
     }
 
     emailSendingProcess = true;
-    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
     let sentCount = 0;
     let failedCount = 0;
-    const validEmails = emailData.filter(data => {
+    const validEmails = emailData.filter((data) => {
       // Basic email validation
       const email = data.email;
-      return email &&
-             email !== "No info" &&
-             email !== "Fetching..." &&
-             email.includes('@') &&
-             email.includes('.') &&
-             !email.match(/^\d+$/) && // Not just numbers
-             email.length > 5;
+      return (
+        email &&
+        email !== "No info" &&
+        email !== "Fetching..." &&
+        email.includes("@") &&
+        email.includes(".") &&
+        !email.match(/^\d+$/) && // Not just numbers
+        email.length > 5
+      );
     });
     const totalEmails = validEmails.length;
 
-    event.reply("email-status", `📧 Starting to send ${totalEmails} emails with rate limiting...`);
+    event.reply(
+      "email-status",
+      `📧 Starting to send ${totalEmails} emails with rate limiting...`
+    );
 
     for (const [index, data] of validEmails.entries()) {
       if (!emailSendingProcess) {
@@ -305,33 +325,42 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
               phone: data.phone,
               address: data.address,
               website: data.website,
-              subject: result.subject
+              subject: result.subject,
             });
           } catch (dbError) {
-            console.error('Error saving to database:', dbError);
+            console.error("Error saving to database:", dbError);
           }
 
           sentCount++;
           console.log(`✅ Email sent successfully to ${data.email}`);
         }
 
-        event.reply("email-progress", { sent: sentCount, total: totalEmails, current: data.companyName });
+        event.reply("email-progress", {
+          sent: sentCount,
+          total: totalEmails,
+          current: data.companyName,
+        });
 
         // Rate limiting: Wait between emails (increased from 1.5s to 3s)
         const delayTime = 3000 + Math.random() * 2000; // 3-5 seconds random delay
-        await new Promise(resolve => setTimeout(resolve, delayTime));
-
+        await new Promise((resolve) => setTimeout(resolve, delayTime));
       } catch (emailError) {
         failedCount++;
-        console.error(`❌ Failed to send email to ${data.email}:`, emailError.message);
+        console.error(
+          `❌ Failed to send email to ${data.email}:`,
+          emailError.message
+        );
 
         // Longer delay after failures
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise((resolve) => setTimeout(resolve, 5000));
       }
     }
 
     emailSendingProcess = false;
-    event.reply("email-status", `✅ Email sending complete! Sent: ${sentCount}, Failed: ${failedCount}`);
+    event.reply(
+      "email-status",
+      `✅ Email sending complete! Sent: ${sentCount}, Failed: ${failedCount}`
+    );
   } catch (error) {
     emailSendingProcess = false;
     event.reply("email-status", `❌ Error sending emails: ${error.message}`);
@@ -357,8 +386,11 @@ ipcMain.on("download-excel", (event, scrapedData) => {
     const worksheet = xlsx.utils.json_to_sheet(scrapedData);
     xlsx.utils.book_append_sheet(workbook, worksheet, "ScrapedData");
 
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-    const filePath = path.join(app.getPath("desktop"), `LeadsData_${timestamp}.xlsx`);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+    const filePath = path.join(
+      app.getPath("desktop"),
+      `LeadsData_${timestamp}.xlsx`
+    );
 
     xlsx.writeFile(workbook, filePath);
     event.reply("download-status", `✅ File saved: ${filePath}`);
@@ -372,7 +404,7 @@ ipcMain.handle("get-sent-emails", async () => {
   try {
     return await emailDB.getAllSentEmails();
   } catch (error) {
-    console.error('Error getting sent emails:', error);
+    console.error("Error getting sent emails:", error);
     return [];
   }
 });
@@ -381,7 +413,7 @@ ipcMain.handle("check-email-sent", async (event, emailAddress) => {
   try {
     return await emailDB.checkIfEmailSent(emailAddress);
   } catch (error) {
-    console.error('Error checking email:', error);
+    console.error("Error checking email:", error);
     return false;
   }
 });
@@ -390,16 +422,16 @@ ipcMain.handle("delete-email-record", async (event, id) => {
   try {
     return await emailDB.deleteEmailRecord(id);
   } catch (error) {
-    console.error('Error deleting email record:', error);
+    console.error("Error deleting email record:", error);
     throw error;
   }
 });
 
-ipcMain.handle('clear-all-email-history', async (event) => {
+ipcMain.handle("clear-all-email-history", async (event) => {
   try {
     return await emailDB.clearAllEmails();
   } catch (error) {
-    console.error('Error clearing email history:', error);
+    console.error("Error clearing email history:", error);
     throw error;
   }
 });
