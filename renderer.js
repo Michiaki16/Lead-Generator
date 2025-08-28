@@ -400,9 +400,9 @@ Junior Unit Manager`;
     emailSendingInProgress = true;
     document.getElementById("sendEmailsBtn").disabled = true;
 
-    // Retrieve email subject from localStorage
+    // Use session subject if available, otherwise use default
     const emailSubject =
-      localStorage.getItem("emailSubject") ||
+      window.sessionEmailSubject ||
       "PRU LIFE UK FINANCIAL WELLNESS AND RETIREMENT PROGRAM PROPOSAL";
 
     emailData.forEach((data) => {
@@ -545,24 +545,28 @@ function closeEmailTemplateModal() {
 }
 
 function saveEmailTemplate() {
+  // Save template for current session only - do not persist
   emailTemplate = document.getElementById("emailTemplateText").value;
-  localStorage.setItem("emailTemplate", emailTemplate);
 
-  // Save email subject
+  // Store subject in session variable (not localStorage)
   const emailSubject = document.getElementById("emailSubject").value;
-  localStorage.setItem("emailSubject", emailSubject);
+  window.sessionEmailSubject = emailSubject;
 
   closeEmailTemplateModal();
   updateSendEmailsButton();
-  alert("Email template saved successfully!");
+  alert("Email template updated for current session only!");
 }
 
 function loadEmailTemplate() {
-  const savedTemplate = localStorage.getItem("emailTemplate");
+  // Always load default template on startup - ignore any saved customizations
+  console.log("Loading default email template on startup");
 
-  // If no saved template, use the default template
-  if (!savedTemplate || savedTemplate.trim() === "") {
-    emailTemplate = `Good day, {companyName}!
+  // Clear any persistent storage to ensure fresh start
+  localStorage.removeItem("emailTemplate");
+  localStorage.removeItem("emailSubject");
+
+  // Always use the default template
+  emailTemplate = `Good day, {companyName}!
 
 Your people are the most valuable asset. No company can enjoy continued success without a highly motivated and productive workforce.
 
@@ -579,9 +583,6 @@ Blue Chalcedony Quartz
 Licensed insurance agent
 Certified Estate and Wealth Planner
 Junior Unit Manager`;
-  } else {
-    emailTemplate = savedTemplate;
-  }
 }
 
 function downloadData() {
