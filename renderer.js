@@ -14,6 +14,13 @@ function initializeApp() {
   loadEmailTemplate();
   updateAuthUI();
   setupEventListeners();
+  
+  // Cancel processes on window close
+  window.addEventListener('beforeunload', () => {
+    if (scrapingInProgress || emailSendingInProgress) {
+      cancelAllProcesses();
+    }
+  });
 }
 
 function setupEventListeners() {

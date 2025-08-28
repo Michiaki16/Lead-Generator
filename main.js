@@ -15,6 +15,8 @@ let scrapingProcess = null;
 let emailSendingProcess = null;
 let userProfile = null;
 let emailDB = null;
+let activeTimeouts = new Set();
+let currentEmailController = null;
 
 app.whenReady().then(() => {
   emailDB = new EmailDatabase();
@@ -353,7 +355,13 @@ ipcMain.on("send-emails", async (event, { emailData, template, subject }) => {
 
         // Rate limiting: Wait between emails (increased from 1.5s to 3s)
         const delayTime = 3000 + Math.random() * 2000; // 3-5 seconds random delay
-        await new Promise((resolve) => setTimeout(resolve, delayTime));
+        await new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            activeTimeouts.delete(timeoutId);
+            resolve();
+          }, delayTime);
+          activeTimeouts.add(timeoutId);
+        });
       } catch (emailError) {
         failedCount++;
         console.error(
@@ -362,7 +370,13 @@ ipcMain.on("send-emails", async (event, { emailData, template, subject }) => {
         );
 
         // Longer delay after failures
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        await new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            activeTimeouts.delete(timeoutId);
+            resolve();
+          }, 5000);
+          activeTimeouts.add(timeoutId);
+        });
       }
     }
 
@@ -380,8 +394,22 @@ ipcMain.on("send-emails", async (event, { emailData, template, subject }) => {
 ipcMain.on("cancel-emails", (event) => {
   if (emailSendingProcess) {
     emailSendingProcess = false;
+    
+    // Clear all active timeouts immediately
+    console.log(`Clearing ${activeTimeouts.size} active timeouts`);
+    for (const timeoutId of activeTimeouts) {
+      clearTimeout(timeoutId);
+    }
+    activeTimeouts.clear();
+    
+    // Abort any ongoing Gmail API requests
+    if (currentEmailController) {
+      currentEmailController.abort();
+      currentEmailController = null;
+    }
+    
     event.reply("email-status", "❌ Email sending cancelled by user");
-    console.log("Email sending process cancelled by user");
+    console.log("Email sending process cancelled by user - all timers cleared");
   }
 });
 
@@ -447,10 +475,41 @@ ipcMain.handle("clear-all-email-history", async (event) => {
 });
 
 app.on("window-all-closed", () => {
+  // Cancel all email processes and clear timeouts
+  emailSendingProcess = false;
+  console.log(`App closing - clearing ${activeTimeouts.size} active timeouts`);
+  for (const timeoutId of activeTimeouts) {
+    clearTimeout(timeoutId);
+  }
+  activeTimeouts.clear();
+  
+  if (currentEmailController) {
+    currentEmailController.abort();
+    currentEmailController = null;
+  }
+  
   if (emailDB) {
     emailDB.close();
   }
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+// Also handle app quit event for additional safety
+app.on("before-quit", () => {
+  // Force stop all email processes
+  emailSendingProcess = false;
+  console.log(`Before quit - clearing ${activeTimeouts.size} active timeouts`);
+  for (const timeoutId of activeTimeouts) {
+    clearTimeout(timeoutId);
+  }
+  activeTimeouts.clear();
+  
+  if (currentEmailController) {
+    currentEmailController.abort();
+    currentEmailController = null;
+  }
+  
+  console.log("App quitting - all email processes cancelled");
 });

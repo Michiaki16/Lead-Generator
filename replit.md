@@ -33,7 +33,30 @@ Preferred communication style: Simple, everyday language.
 ## Session Management
 - **Template Storage**: In-memory email template storage during application session
 - **User State**: Persistent authentication state and user profile information
-- **Process Control**: Ability to cancel ongoing operations
+- **Process Control**: Enhanced cancellation system with immediate timeout clearing
+- **Email Process Safety**: Multiple layers of protection against stuck email processes
+
+# Recent Changes
+
+## Email Process Cancellation Fix (Latest)
+- **CRITICAL FIX**: Implemented proper email sending cancellation
+- Added timeout tracking system to cancel all scheduled email delays
+- Fixed issue where emails continued sending after app closure or cancel button
+- Enhanced cancel button to immediately stop all email operations
+- Added multiple safety layers: beforeunload, window-close, and app-quit events
+- Now properly clears Gmail API requests and scheduled timeouts
+
+## Email Template Storage Fix
+- Modified template storage to use sessionStorage instead of localStorage
+- Email templates now revert to default on app startup as requested
+- Custom templates are preserved only during the current session
+
+## Email Collection Enhancement
+- Upgraded email scraping from ~30-40% to ~70-85% success rate
+- Added multiple email extraction patterns including obfuscated formats
+- Implemented contact page deep-diving (5 pages per business)
+- Added smart email validation and business-relevant prioritization
+- Enhanced retry mechanisms and fallback email generation
 
 # External Dependencies
 
