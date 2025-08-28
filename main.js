@@ -187,28 +187,30 @@ ipcMain.on("google-auth", async (event) => {
 async function sendEmailWithRetry(
   gmail,
   emailData,
-  template,
+  templateData,
   maxRetries = 3,
   baseDelay = 5000
 ) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      let emailContent = (template.body || template)
+      let emailContent = templateData.body
         .replace(/{companyName}/g, emailData.companyName || "")
         .replace(/{email}/g, emailData.email || "")
         .replace(/{phone}/g, emailData.phone || "")
         .replace(/{address}/g, emailData.address || "")
         .replace(/{website}/g, emailData.website || "");
 
-      let emailSubject =
-        template.subject ||
-        "PRU LIFE UK FINANCIAL WELLNESS AND RETIREMENT PROGRAM PROPOSAL";
-      const emailSubjectProcessed = emailSubject
+      const emailSubjectProcessed = templateData.subject
         .replace(/{companyName}/g, emailData.companyName || "")
         .replace(/{email}/g, emailData.email || "")
         .replace(/{phone}/g, emailData.phone || "")
         .replace(/{address}/g, emailData.address || "")
         .replace(/{website}/g, emailData.website || "");
+
+      // Remove subject from email content if it appears at the beginning
+      if (emailContent.trim().startsWith(emailSubjectProcessed)) {
+        emailContent = emailContent.replace(emailSubjectProcessed, '').trim();
+      }
 
       // Convert plain text to HTML with proper formatting
       const htmlContent = emailContent
@@ -223,16 +225,18 @@ async function sendEmailWithRetry(
       try {
         const footerImageBuffer = fs.readFileSync(footerImagePath);
         const footerImageBase64 = footerImageBuffer.toString("base64");
-        footerImage = `<br><br><div style="text-align: center; margin-top: 20px;"><img src="data:image/jpeg;base64,${footerImageBase64}" alt="Email Footer" style="max-width: 300px; height: auto;"></div>`;
+        footerImage = `<br><br><div style="margin-top: 20px;"><img src="data:image/jpeg;base64,${footerImageBase64}" alt="Email Footer" style="max-width: 300px; height: auto;"></div>`;
       } catch (error) {
         console.log("Footer image not found, continuing without footer");
       }
 
       const fullHtmlContent = `
         <html>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-            ${htmlContent}
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0;">
+          <div style="max-width: 800px; padding: 20px; background-color: #ffffff;">
+            <div style="text-align: left; margin-bottom: 20px;">
+              ${htmlContent}
+            </div>
             ${footerImage}
           </div>
         </body>
@@ -276,7 +280,7 @@ async function sendEmailWithRetry(
   }
 }
 
-ipcMain.on("send-emails", async (event, { emailData, template }) => {
+ipcMain.on("send-emails", async (event, { emailData, template, subject }) => {
   try {
     if (!oauth2Client || !oauth2Client.credentials) {
       event.reply("email-status", "❌ Please authenticate with Google first");
@@ -307,6 +311,12 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
       `📧 Starting to send ${totalEmails} emails with rate limiting...`
     );
 
+    // Prepare template data with subject and body
+    const templateData = {
+      subject: subject || "PRU LIFE UK FINANCIAL WELLNESS AND RETIREMENT PROGRAM PROPOSAL",
+      body: template
+    };
+
     for (const [index, data] of validEmails.entries()) {
       if (!emailSendingProcess) {
         event.reply("email-status", "❌ Email sending cancelled by user");
@@ -314,7 +324,7 @@ ipcMain.on("send-emails", async (event, { emailData, template }) => {
       }
 
       try {
-        const result = await sendEmailWithRetry(gmail, data, template);
+        const result = await sendEmailWithRetry(gmail, data, templateData);
 
         if (result.success) {
           // Save to database
