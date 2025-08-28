@@ -4,6 +4,7 @@ const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const cheerio = require("cheerio");
 const chromeLauncher = require("chrome-launcher");
 const { exec } = require("child_process");
+const emailUtils = require("./email-enhancement");
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -139,57 +140,102 @@ async function scrapeEmailsParallel(businesses, event) {
           const page = await browser.newPage();
           await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
           
-          await page.goto(biz.bizWebsite, {
-            waitUntil: "networkidle2",
-            timeout: 120000,
-          });
-          await delay(3000);
+          // Retry mechanism for page loading
+          let pageLoaded = false;
+          for (let retry = 0; retry < 3; retry++) {
+            try {
+              await page.goto(biz.bizWebsite, {
+                waitUntil: "networkidle2",
+                timeout: 60000,
+              });
+              pageLoaded = true;
+              break;
+            } catch (pageError) {
+              console.log(`Retry ${retry + 1} for ${biz.storeName}: ${pageError.message}`);
+              if (retry < 2) await delay(2000);
+            }
+          }
+          
+          if (!pageLoaded) {
+            throw new Error('Failed to load page after 3 attempts');
+          }
+          
+          await delay(2000);
           
           const pageHtml = await page.content();
 
-          // Enhanced email regex including obfuscated emails
-          const emailMatches = pageHtml.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|[a-zA-Z0-9._%+-]+\s?\[at\]\s?[a-zA-Z0-9.-]+\s?\[dot\]\s?[a-zA-Z]{2,}/g);
+          // Extract emails using multiple patterns
+          let allEmailMatches = [];
+          for (const pattern of emailUtils.emailPatterns) {
+            const matches = pageHtml.match(pattern) || [];
+            allEmailMatches.push(...matches);
+          }
           
-          if (emailMatches) {
-            const normalizedEmails = emailMatches.map((email) =>
-              email.replace(/\[at\]/g, "@").replace(/\[dot\]/g, ".").toLowerCase()
-            );
+          // Also search in page text content (visible text)
+          const pageText = await page.evaluate(() => document.body.innerText || '');
+          for (const pattern of emailUtils.emailPatterns) {
+            const textMatches = pageText.match(pattern) || [];
+            allEmailMatches.push(...textMatches);
+          }
+          
+          if (allEmailMatches.length > 0) {
+            // Normalize and validate all found emails
+            const processedEmails = [];
             
-            // Filter out invalid emails
-            const validEmails = normalizedEmails.filter(email => {
-              return email.length > 5 && 
-                     email.length < 60 &&
-                     email.includes('@') &&
-                     email.includes('.') &&
-                     !email.includes('noreply') && 
-                     !email.includes('no-reply') &&
-                     !email.includes('donotreply') &&
-                     !email.includes('example.com') &&
-                     !email.includes('test@') &&
-                     !email.includes('sample@') &&
-                     !email.includes('placeholder') &&
-                     !email.includes('your-email') &&
-                     !email.includes('youremail') &&
-                     !email.includes('email@domain') &&
-                     !email.includes('name@domain') &&
-                     !email.includes('user@example');
-            });
+            for (const email of allEmailMatches) {
+              const normalizedEmail = emailUtils.normalizeEmail(email);
+              const validation = emailUtils.validateEmail(normalizedEmail);
+              
+              if (validation.isValid) {
+                processedEmails.push({
+                  email: validation.email,
+                  priority: validation.priority
+                });
+              }
+            }
             
-            if (validEmails.length > 0) {
+            // Remove duplicates and sort by priority
+            const uniqueEmails = processedEmails.filter((item, index, self) => 
+              index === self.findIndex(t => t.email === item.email)
+            ).sort((a, b) => b.priority - a.priority);
+            
+            const validEmails = uniqueEmails.map(item => item.email);
+            
+              if (validEmails.length > 0) {
               const domain = new URL(biz.bizWebsite).hostname.replace("www.", "");
               const prioritizedEmail = validEmails.find((email) => email.includes(domain)) || validEmails[0];
               biz.email = prioritizedEmail;
+              biz.allEmails = validEmails.slice(0, 3); // Store up to 3 emails for reference
+              biz.emailSource = 'website_content';
             } else {
-              biz.email = await searchContactPages(page, biz);
+              const contactEmail = await searchContactPagesEnhanced(page, biz);
+              biz.email = contactEmail;
+              biz.emailSource = contactEmail.includes('(estimated)') ? 'estimated' : 'contact_page';
             }
           } else {
-            biz.email = await searchContactPages(page, biz);
+            const contactEmail = await searchContactPagesEnhanced(page, biz);
+            biz.email = contactEmail;
+            biz.emailSource = contactEmail.includes('(estimated)') ? 'estimated' : 'fallback';
           }
 
           await page.close();
         } catch (error) {
           console.error(`Error scraping email for ${biz.storeName}:`, error.message);
-          biz.email = "No information";
+          
+          // Final fallback: try to generate common email patterns
+          if (biz.bizWebsite) {
+            try {
+              const domain = new URL(biz.bizWebsite).hostname.replace('www.', '');
+              biz.email = `info@${domain} (estimated)`;
+              biz.emailSource = 'domain_guess';
+            } catch (e) {
+              biz.email = "No information";
+              biz.emailSource = 'failed';
+            }
+          } else {
+            biz.email = "No information";
+            biz.emailSource = 'no_website';
+          }
         }
 
         processedCount++;
@@ -219,65 +265,213 @@ async function scrapeEmailsParallel(businesses, event) {
   await browser.close();
 }
 
-async function searchContactPages(page, biz) {
+async function searchContactPagesEnhanced(page, biz) {
   try {
-    // Look for contact and about page links
+    // Enhanced link detection for contact, about, team, and leadership pages
     const links = await page.$$eval("a", (anchors) =>
       anchors.map((a) => ({
         href: a.href,
-        text: a.textContent.toLowerCase()
+        text: a.textContent.toLowerCase(),
+        title: a.title ? a.title.toLowerCase() : ''
       })).filter((link) => {
         const href = link.href.toLowerCase();
         const text = link.text;
-        return (text.includes("contact") || 
-               text.includes("about") ||
-               text.includes("reach") ||
-               text.includes("get in touch") ||
-               href.includes("contact") ||
-               href.includes("about") ||
-               href.includes("/contact-us") ||
-               href.includes("/contact-me") ||
-               href.includes("/about-us")) &&
-               link.href.startsWith("http");
-      }).map(link => link.href).slice(0, 3)
+        const title = link.title;
+        
+        // Expanded search patterns for pages likely to contain emails
+        const contactPatterns = [
+          'contact', 'about', 'reach', 'get in touch', 'connect',
+          'team', 'staff', 'leadership', 'management', 'directors',
+          'our team', 'meet the team', 'who we are', 'our story',
+          'headquarters', 'office', 'location', 'branch',
+          'support', 'help', 'customer service', 'inquiry',
+          'sales', 'business', 'partnership', 'collaborate'
+        ];
+        
+        const urlPatterns = [
+          '/contact', '/about', '/team', '/staff', '/leadership',
+          '/management', '/our-team', '/meet-team', '/who-we-are',
+          '/office', '/location', '/branch', '/support', '/help',
+          '/sales', '/business', '/partnership', '/connect'
+        ];
+        
+        // Check text, title, and href for patterns
+        const hasContactPattern = contactPatterns.some(pattern => 
+          text.includes(pattern) || title.includes(pattern)
+        );
+        
+        const hasUrlPattern = urlPatterns.some(pattern => 
+          href.includes(pattern)
+        );
+        
+        return (hasContactPattern || hasUrlPattern) && 
+               link.href.startsWith("http") &&
+               !href.includes('facebook.com') &&
+               !href.includes('twitter.com') &&
+               !href.includes('instagram.com') &&
+               !href.includes('linkedin.com/company');
+      }).map(link => link.href).slice(0, 5) // Increased to 5 pages
     );
 
+    // Try each contact page
     for (const link of links) {
       try {
         await page.goto(link, { 
           waitUntil: "networkidle2", 
-          timeout: 120000 
+          timeout: 60000 
         });
-        await delay(2000);
+        await delay(1500);
         
+        // Extract emails from both HTML and visible text
         const contactPageHtml = await page.content();
-        const contactEmailMatches = contactPageHtml.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+        const contactPageText = await page.evaluate(() => document.body.innerText || '');
         
-        if (contactEmailMatches) {
-          const validContactEmails = contactEmailMatches.filter(email => {
-            const lowerEmail = email.toLowerCase();
-            return email.length > 5 && 
-                   email.length < 60 &&
-                   !lowerEmail.includes('noreply') && 
-                   !lowerEmail.includes('no-reply') &&
-                   !lowerEmail.includes('donotreply') &&
-                   !lowerEmail.includes('example.com') &&
-                   !lowerEmail.includes('test@') &&
-                   !lowerEmail.includes('sample@');
-          });
+        let allContactEmails = [];
+        
+        // Use enhanced email patterns
+        for (const pattern of emailUtils.emailPatterns) {
+          const htmlMatches = contactPageHtml.match(pattern) || [];
+          const textMatches = contactPageText.match(pattern) || [];
+          allContactEmails.push(...htmlMatches, ...textMatches);
+        }
+        
+        if (allContactEmails.length > 0) {
+          // Process and validate emails
+          const processedEmails = [];
           
-          if (validContactEmails.length > 0) {
-            return validContactEmails[0];
+          for (const email of allContactEmails) {
+            const normalizedEmail = emailUtils.normalizeEmail(email);
+            const validation = emailUtils.validateEmail(normalizedEmail);
+            
+            if (validation.isValid) {
+              processedEmails.push({
+                email: validation.email,
+                priority: validation.priority
+              });
+            }
+          }
+          
+          // Remove duplicates and sort by priority
+          const uniqueEmails = processedEmails.filter((item, index, self) => 
+            index === self.findIndex(t => t.email === item.email)
+          ).sort((a, b) => b.priority - a.priority);
+          
+          if (uniqueEmails.length > 0) {
+            return uniqueEmails[0].email;
           }
         }
       } catch (e) {
-        console.log(`Failed to load contact/about page: ${link}`);
+        console.log(`Failed to load page: ${link}`);
+        continue; // Try next page
       }
     }
 
-    return "No information";
+    // If no emails found in contact pages, try social media extraction
+    return await searchSocialMediaEmails(page, biz);
+    
   } catch (error) {
     console.log(`Error searching contact pages for ${biz.storeName}`);
+    return await searchSocialMediaEmails(page, biz);
+  }
+}
+
+async function searchSocialMediaEmails(page, biz) {
+  try {
+    // Go back to the original website
+    if (biz.bizWebsite) {
+      await page.goto(biz.bizWebsite, { 
+        waitUntil: "networkidle2", 
+        timeout: 60000 
+      });
+      await delay(1000);
+    }
+    
+    // Look for social media links and other external profiles
+    const socialLinks = await page.$$eval("a", (anchors) =>
+      anchors.map((a) => a.href).filter((href) => {
+        const url = href.toLowerCase();
+        return (url.includes('linkedin.com/in/') || 
+               url.includes('linkedin.com/pub/') ||
+               url.includes('facebook.com/') ||
+               url.includes('twitter.com/') ||
+               url.includes('instagram.com/')) &&
+               href.startsWith("http");
+      }).slice(0, 3)
+    );
+
+    // Try to find emails in form fields, placeholders, and meta tags
+    const formEmails = await page.evaluate(() => {
+      const emails = [];
+      
+      // Check form placeholders
+      const inputs = document.querySelectorAll('input[type="email"], input[placeholder*="email" i], input[placeholder*="@"]');
+      inputs.forEach(input => {
+        if (input.placeholder && input.placeholder.includes('@')) {
+          emails.push(input.placeholder);
+        }
+      });
+      
+      // Check meta tags
+      const metaTags = document.querySelectorAll('meta');
+      metaTags.forEach(meta => {
+        const content = meta.getAttribute('content') || '';
+        if (content.includes('@') && content.includes('.')) {
+          emails.push(content);
+        }
+      });
+      
+      // Check data attributes
+      const dataElements = document.querySelectorAll('[data-email], [data-contact], [data-mail]');
+      dataElements.forEach(el => {
+        const dataEmail = el.getAttribute('data-email') || el.getAttribute('data-contact') || el.getAttribute('data-mail');
+        if (dataEmail && dataEmail.includes('@')) {
+          emails.push(dataEmail);
+        }
+      });
+      
+      return emails;
+    });
+    
+    // Process form emails
+    if (formEmails.length > 0) {
+      for (const email of formEmails) {
+        const normalizedEmail = emailUtils.normalizeEmail(email);
+        const validation = emailUtils.validateEmail(normalizedEmail);
+        
+        if (validation.isValid) {
+          return validation.email;
+        }
+      }
+    }
+    
+    // If still no email found, try a general email guess based on domain
+    if (biz.bizWebsite) {
+      try {
+        const domain = new URL(biz.bizWebsite).hostname.replace('www.', '');
+        const commonEmails = [
+          `info@${domain}`,
+          `contact@${domain}`,
+          `hello@${domain}`,
+          `admin@${domain}`,
+          `support@${domain}`,
+          `sales@${domain}`
+        ];
+        
+        // Return the first common email pattern (this is a guess)
+        for (const guessEmail of commonEmails) {
+          const validation = emailUtils.validateEmail(guessEmail);
+          if (validation.isValid) {
+            return `${guessEmail} (estimated)`;
+          }
+        }
+      } catch (e) {
+        // Invalid URL
+      }
+    }
+    
+    return "No information";
+  } catch (error) {
+    console.log(`Error in social media search for ${biz.storeName}`);
     return "No information";
   }
 }
@@ -378,9 +572,20 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
 
     await browserMaps.close();
 
-    console.log("Scraping completed, sending results to frontend...");
+    console.log("Scraping completed, performing email analysis...");
+    
+    // Analyze email collection results
+    const emailStats = {
+      total: businesses.length,
+      withEmails: businesses.filter(b => b.email && b.email !== "No information").length,
+      fromWebsite: businesses.filter(b => b.emailSource === 'website_content').length,
+      fromContactPage: businesses.filter(b => b.emailSource === 'contact_page').length,
+      estimated: businesses.filter(b => b.emailSource === 'estimated' || b.emailSource === 'domain_guess').length
+    };
+    
+    console.log(`Email collection results:`, emailStats);
+    event.reply("scraper-status", `Scraping completed! Found ${emailStats.withEmails}/${emailStats.total} email addresses`);
     event.reply("scraper-results", businesses);
-    event.reply("scraper-status", "Scraping completed!");
   } catch (error) {
     console.error("Error in searchGoogleMaps:", error.message);
     event.reply("scraper-status", `Error: ${error.message}`);

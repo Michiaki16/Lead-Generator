@@ -1,10 +1,11 @@
-modules = ["nodejs-20"]
+modules = ["nodejs-20", "python-3.11"]
 [agent]
 expertMode = true
+integrations = ["web_scraper==1.0.0"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["glib", "gtk3", "nss", "cups", "dbus", "alsa-lib", "atk", "cairo", "gdk-pixbuf", "mesa", "libdrm", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr"]
+packages = ["alsa-lib", "atk", "cairo", "cups", "dbus", "gdk-pixbuf", "glib", "gtk3", "libdrm", "mesa", "nss", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr"]
 
 [workflows]
 runButton = "Project"
