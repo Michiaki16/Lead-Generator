@@ -147,25 +147,30 @@ function setupEventListeners() {
   });
 
   window.electronAPI.onEmailProgress((event, progress) => {
-    // Calculate estimated time remaining
+    // Calculate estimated time remaining with more accurate timing
     const emailsRemaining = progress.total - progress.sent;
-    const averageDelayPerEmail = 4; // seconds
+    const averageDelayPerEmail = 4.5; // seconds (3-5 seconds random delay + processing time)
     const estimatedSecondsRemaining = emailsRemaining * averageDelayPerEmail;
     const estimatedMinutesRemaining = Math.floor(
       estimatedSecondsRemaining / 60
     );
-    const estimatedSecondsRemainder = estimatedSecondsRemaining % 60;
+    const estimatedSecondsRemainder = Math.floor(estimatedSecondsRemaining % 60);
 
     let timeRemainingText = "";
     if (estimatedMinutesRemaining > 0) {
-      timeRemainingText = ` - ~${estimatedMinutesRemaining}m ${estimatedSecondsRemainder}s remaining`;
+      timeRemainingText = ` - ${estimatedMinutesRemaining}m ${estimatedSecondsRemainder}s remaining`;
     } else if (estimatedSecondsRemaining > 0) {
-      timeRemainingText = ` - ~${estimatedSecondsRemaining}s remaining`;
+      timeRemainingText = ` - ${estimatedSecondsRemainder}s remaining`;
+    } else {
+      timeRemainingText = " - Almost done!";
     }
 
+    // Calculate percentage complete
+    const percentComplete = Math.floor((progress.sent / progress.total) * 100);
+    
     document.getElementById(
       "status"
-    ).innerText = `📧 Sending emails... ${progress.sent}/${progress.total} (${progress.current})${timeRemainingText}`;
+    ).innerText = `📧 Sending emails... ${progress.sent}/${progress.total} (${percentComplete}%)${timeRemainingText} | Currently: ${progress.current}`;
   });
 
   window.electronAPI.onEmailStatus((event, message) => {
@@ -406,6 +411,15 @@ Junior Unit Manager`;
   ) {
     emailSendingInProgress = true;
     document.getElementById("sendEmailsBtn").disabled = true;
+
+    // Show initial status with time estimate
+    let initialTimeText = "";
+    if (estimatedMinutes > 0) {
+      initialTimeText = `Est. time: ${estimatedMinutes}m ${estimatedSecondsRemainder}s`;
+    } else {
+      initialTimeText = `Est. time: ${estimatedTotalSeconds}s`;
+    }
+    document.getElementById("status").innerText = `📧 Starting email campaign... ${emailData.length} emails queued - ${initialTimeText}`;
 
     // Use session subject if available, otherwise use default
     const emailSubject =

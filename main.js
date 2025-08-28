@@ -308,9 +308,22 @@ ipcMain.on("send-emails", async (event, { emailData, template, subject }) => {
     });
     const totalEmails = validEmails.length;
 
+    // Calculate and display estimated time
+    const averageDelayPerEmail = 4.5; // seconds (3-5 seconds random delay + processing)
+    const estimatedTotalSeconds = totalEmails * averageDelayPerEmail;
+    const estimatedMinutes = Math.floor(estimatedTotalSeconds / 60);
+    const estimatedSecondsRemainder = Math.floor(estimatedTotalSeconds % 60);
+    
+    let timeEstimateText = "";
+    if (estimatedMinutes > 0) {
+      timeEstimateText = ` - Est. time: ${estimatedMinutes}m ${estimatedSecondsRemainder}s`;
+    } else {
+      timeEstimateText = ` - Est. time: ${Math.floor(estimatedTotalSeconds)}s`;
+    }
+
     event.reply(
       "email-status",
-      `📧 Starting to send ${totalEmails} emails with rate limiting...`
+      `📧 Sending ${totalEmails} emails with rate limiting${timeEstimateText}`
     );
 
     // Prepare template data with subject and body
