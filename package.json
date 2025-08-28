@@ -1,0 +1,40 @@
+{
+  "name": "lead-generator",
+  "version": "1.0.0",
+  "description": "A web scraping tool to extract business leads from Google Maps.",
+  "author": "Miko Andre San Miguel",
+  "license": "ISC",
+  "type": "commonjs",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-packager . LeadGenerator --platform=win32 --arch=x64 --out=dist --overwrite --prune=false"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "^133.0.0",
+    "cheerio": "^1.0.0",
+    "chrome-launcher": "^1.2.0",
+    "dayjs": "^1.11.13",
+    "electron": "^35.0.2",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
+    "googleapis": "^154.1.0",
+    "puppeteer": "^24.4.0",
+    "puppeteer-core": "^24.15.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "sqlite3": "^5.1.7",
+    "three": "^0.174.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron-installer-windows": "^3.0.0",
+    "electron-packager": "^17.1.2"
+  },
+  "keywords": [
+    "lead generator",
+    "scraper",
+    "Google Maps",
+    "business leads"
+  ]
+}
