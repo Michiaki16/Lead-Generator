@@ -183,6 +183,8 @@ function setupEventListeners() {
 
   window.electronAPI.onDownloadStatus((event, message) => {
     document.getElementById("status").innerText = message;
+    // Ensure button state is refreshed after download status update
+    updateSendEmailsButton();
   });
 }
 
@@ -621,6 +623,10 @@ function downloadData() {
   });
 
   window.electronAPI.downloadExcel(data);
+  
+  // Ensure the send emails button state is refreshed after download
+  // This prevents the button from being disabled after downloading
+  updateSendEmailsButton();
 }
 
 // Email History Functions
@@ -790,6 +796,9 @@ async function populateTable(data) {
 
     tableBody.appendChild(row);
   }
+  
+  // Ensure the send emails button state is refreshed after populating table
+  updateSendEmailsButton();
 }
 
 window.addEventListener("load", initializeApp);
