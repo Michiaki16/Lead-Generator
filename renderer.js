@@ -8,6 +8,19 @@ let emailTemplate = "";
 let isLoggedIn = false;
 let userProfile = null;
 
+// Email normalization function to ensure consistent email cleaning
+function normalizeEmail(email) {
+  if (!email || typeof email !== 'string') {
+    return '';
+  }
+  
+  return email
+    .replace(/\s*\(estimated\)\s*/gi, '') // Remove "(estimated)" case-insensitive
+    .replace(/\s*\(.*?\)\s*/g, '') // Remove any other text in parentheses
+    .trim()
+    .toLowerCase(); // Convert to lowercase for consistent comparison
+}
+
 // Initialize app
 function initializeApp() {
   updateSendEmailsButton();
@@ -363,13 +376,10 @@ Junior Unit Manager`;
     const cells = row.querySelectorAll("td");
     const rawEmail = cells[3].textContent.trim();
     
-    // Clean the email address by removing "(estimated)" and other unwanted text
-    const email = rawEmail
-      .replace(/\s*\(estimated\)\s*/gi, '') // Remove "(estimated)" case-insensitive
-      .replace(/\s*\(.*?\)\s*/g, '') // Remove any other text in parentheses
-      .trim();
+    // Clean the email address using the centralized normalization function
+    const email = normalizeEmail(rawEmail);
 
-    if (email && email !== "No info" && email !== "Fetching...") {
+    if (email && email !== "no info" && email !== "fetching...") {
       emailData.push({
         companyName: cells[1].textContent.trim(),
         phone: cells[2].textContent.trim(),
@@ -737,7 +747,7 @@ async function populateTable(data) {
   for (const business of data) {
     const row = document.createElement("tr");
 
-    // Check if email was already sent
+    // Check if email was already sent using normalized email for consistency
     let isAlreadySent = false;
     if (
       business.email &&
@@ -745,7 +755,10 @@ async function populateTable(data) {
       business.email !== "Fetching..."
     ) {
       try {
-        isAlreadySent = await window.electronAPI.checkEmailSent(business.email);
+        const normalizedEmail = normalizeEmail(business.email);
+        if (normalizedEmail) {
+          isAlreadySent = await window.electronAPI.checkEmailSent(normalizedEmail);
+        }
       } catch (error) {
         console.error("Error checking email status:", error);
       }

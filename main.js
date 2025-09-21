@@ -16,6 +16,19 @@ let emailSendingProcess = null;
 let userProfile = null;
 let emailDB = null;
 
+// Email normalization function to ensure consistent email cleaning across the app
+function normalizeEmail(email) {
+  if (!email || typeof email !== 'string') {
+    return '';
+  }
+  
+  return email
+    .replace(/\s*\(estimated\)\s*/gi, '') // Remove "(estimated)" case-insensitive
+    .replace(/\s*\(.*?\)\s*/g, '') // Remove any other text in parentheses
+    .trim()
+    .toLowerCase(); // Convert to lowercase for consistent comparison
+}
+
 app.whenReady().then(() => {
   emailDB = new EmailDatabase();
 
@@ -292,18 +305,21 @@ ipcMain.on("send-emails", async (event, { emailData, template, subject }) => {
     let sentCount = 0;
     let failedCount = 0;
     const validEmails = emailData.filter((data) => {
-      // Basic email validation
-      const email = data.email;
+      // Basic email validation using normalized email
+      const email = normalizeEmail(data.email);
       return (
         email &&
-        email !== "No info" &&
-        email !== "Fetching..." &&
+        email !== "no info" &&
+        email !== "fetching..." &&
         email.includes("@") &&
         email.includes(".") &&
         !email.match(/^\d+$/) && // Not just numbers
         email.length > 5
       );
-    });
+    }).map(data => ({
+      ...data,
+      email: normalizeEmail(data.email) // Ensure the email is normalized for processing
+    }));
     const totalEmails = validEmails.length;
 
     event.reply(
@@ -421,7 +437,8 @@ ipcMain.handle("get-sent-emails", async () => {
 
 ipcMain.handle("check-email-sent", async (event, emailAddress) => {
   try {
-    return await emailDB.checkIfEmailSent(emailAddress);
+    const normalizedEmail = normalizeEmail(emailAddress);
+    return await emailDB.checkIfEmailSent(normalizedEmail);
   } catch (error) {
     console.error("Error checking email:", error);
     return false;
