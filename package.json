@@ -8,7 +8,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . LeadGenerator --platform=win32 --arch=x64 --out=dist --overwrite --prune=false"
+    "build": "electron-packager . PruLeadGenMailer --platform=win32 --arch=x64 --out=dist --overwrite --prune=false --icon=src/img/bcdq.ico --executable-name=PruLeadGenMailer"
   },
   "dependencies": {
     "@sparticuz/chromium": "^133.0.0",
