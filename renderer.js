@@ -99,6 +99,12 @@ function setupEventListeners() {
   // IPC event listeners
   window.electronAPI.onScraperStatus((event, message) => {
     document.getElementById("status").innerText = `⏳ ${message}`;
+    
+    // Reset scraping flag if cancelled or error occurred
+    if (message.includes("cancelled") || message.includes("Error") || message.includes("❌")) {
+      scrapingInProgress = false;
+      console.log("Scraping status indicates cancel/error - resetting scrapingInProgress flag");
+    }
   });
 
   window.electronAPI.onEstimatedTime((event, estimatedTimeMinutes) => {
@@ -202,6 +208,13 @@ function runScraper() {
   if (!query) {
     document.getElementById("status").innerText =
       "⚠️ Please enter a search term!";
+    return;
+  }
+
+  // Prevent starting new scraping if one is already in progress
+  if (scrapingInProgress) {
+    document.getElementById("status").innerText =
+      "⚠️ Scraping already in progress. Please cancel current process first.";
     return;
   }
 

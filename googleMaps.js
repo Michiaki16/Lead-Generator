@@ -8,13 +8,36 @@ const { exec } = require("child_process");
 puppeteerExtra.use(StealthPlugin());
 
 let browserMaps;
+let browserEmails; // Browser instance for email scraping
 let isCancelled = false;
 
 async function cancelScraping() {
+  console.log("Setting cancellation flag and closing all browsers...");
   isCancelled = true;
+  
+  // Close main Google Maps browser
   if (browserMaps) {
-    await browserMaps.close();
+    try {
+      await browserMaps.close();
+      console.log("Main browser instance closed successfully");
+    } catch (error) {
+      console.error("Error closing main browser:", error);
+    }
+    browserMaps = null; // Reset browser reference
   }
+  
+  // Close email scraping browser
+  if (browserEmails) {
+    try {
+      await browserEmails.close();
+      console.log("Email scraping browser instance closed successfully");
+    } catch (error) {
+      console.error("Error closing email scraping browser:", error);
+    }
+    browserEmails = null; // Reset browser reference
+  }
+  
+  console.log("All browsers cancelled and closed");
 }
 
 async function getChromePath() {
@@ -98,11 +121,26 @@ async function delay(ms) {
 
 async function scrapeEmailsParallel(businesses, event) {
   const chromePath = await getChromePath();
-  const browser = await puppeteerExtra.launch({
-    headless: true,
-    executablePath: chromePath,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  let browser = null;
+  
+  try {
+    browserEmails = await puppeteerExtra.launch({
+      headless: true,
+      executablePath: chromePath,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    browser = browserEmails; // Keep local reference for compatibility
+    
+    // Early abort if cancelled right after browser launch
+    if (isCancelled) {
+      await browserEmails.close();
+      browserEmails = null;
+      return;
+    }
+  } catch (error) {
+    console.error("Error launching browser for email scraping:", error);
+    throw error;
+  }
 
   const batchSize = 5;
   const businessChunks = [];
@@ -115,11 +153,21 @@ async function scrapeEmailsParallel(businesses, event) {
   const estimatedTimePerBatch = 60;
   let processedCount = 0;
 
-  for (const [index, chunk] of businessChunks.entries()) {
-    if (isCancelled) break;
-    
-    console.log(`Processing batch ${index + 1} of ${totalBatches}...`);
+  try {
+    for (const [index, chunk] of businessChunks.entries()) {
+      if (isCancelled) {
+        console.log("Cancellation detected before batch processing");
+        break;
+      }
+      
+      console.log(`Processing batch ${index + 1} of ${totalBatches}...`);
 
+    // Check cancellation before processing chunk
+    if (isCancelled) {
+      console.log("Cancellation detected before chunk processing");
+      break;
+    }
+    
     await Promise.all(
       chunk.map(async (biz) => {
         if (isCancelled) return;
@@ -136,12 +184,21 @@ async function scrapeEmailsParallel(businesses, event) {
         }
 
         try {
+          // Check cancellation before creating new page
+          if (isCancelled) return;
+          
           const page = await browser.newPage();
           await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
           
+          // Check cancellation before navigation
+          if (isCancelled) {
+            await page.close();
+            return;
+          }
+          
           await page.goto(biz.bizWebsite, {
             waitUntil: "networkidle2",
-            timeout: 120000,
+            timeout: 30000, // Reduced from 120s to 30s for more responsive cancellation
           });
           await delay(3000);
           
@@ -211,12 +268,28 @@ async function scrapeEmailsParallel(businesses, event) {
       `Batch ${index + 1}/${totalBatches} completed. Estimated time left: ${minutesLeft}m ${extraSeconds}s`
     );
 
-    if (index < totalBatches - 1) {
-      await delay(60000);
+      if (index < totalBatches - 1 && !isCancelled) {
+        await delay(60000);
+      }
+    }
+  } catch (error) {
+    console.error("Error during email scraping:", error);
+  } finally {
+    // Ensure both browser references are always closed
+    if (browserEmails) {
+      try {
+        await browserEmails.close();
+        console.log("Email scraping browser closed successfully");
+      } catch (error) {
+        console.error("Error closing email scraping browser:", error);
+      }
+      browserEmails = null;
+    }
+    
+    if (isCancelled) {
+      console.log("Email scraping cancelled by user");
     }
   }
-
-  await browser.close();
 }
 
 async function searchContactPages(page, biz) {
@@ -246,7 +319,7 @@ async function searchContactPages(page, biz) {
       try {
         await page.goto(link, { 
           waitUntil: "networkidle2", 
-          timeout: 120000 
+          timeout: 30000  // Reduced timeout for more responsive cancellation
         });
         await delay(2000);
         
@@ -374,9 +447,29 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
       return;
     }
 
-    await scrapeEmailsParallel(businesses, event);
+    // Final check before starting email scraping phase
+    if (isCancelled) {
+      await browserMaps.close();
+      return;
+    }
 
-    await browserMaps.close();
+    await scrapeEmailsParallel(businesses, event);
+    
+    // Check if cancelled after email scraping
+    if (isCancelled) {
+      return;
+    }
+
+    if (browserMaps) {
+      try {
+        await browserMaps.close();
+        browserMaps = null; // Reset browser reference
+        console.log("Browser closed successfully after scraping completion");
+      } catch (error) {
+        console.error("Error closing browser:", error);
+        browserMaps = null; // Reset even if close fails
+      }
+    }
 
     console.log("Scraping completed, sending results to frontend...");
     event.reply("scraper-results", businesses);
@@ -384,8 +477,15 @@ async function searchGoogleMaps(GOOGLE_MAPS_QUERY, event) {
   } catch (error) {
     console.error("Error in searchGoogleMaps:", error.message);
     event.reply("scraper-status", `Error: ${error.message}`);
+    
+    // Ensure browser is properly closed and reset on error
     if (browserMaps) {
-      await browserMaps.close();
+      try {
+        await browserMaps.close();
+      } catch (closeError) {
+        console.error("Error closing browser on error:", closeError);
+      }
+      browserMaps = null; // Reset browser reference
     }
   }
 }

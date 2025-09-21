@@ -50,9 +50,20 @@ app.whenReady().then(() => {
 
 ipcMain.on("run-scraper", async (event, query) => {
   try {
+    // Prevent starting new scraping if one is already running
+    if (scrapingProcess) {
+      event.reply("scraper-status", "⚠️ Scraping already in progress. Please cancel current process first.");
+      return;
+    }
+
     scrapingProcess = searchGoogleMaps(query, event);
     await scrapingProcess;
+    
+    // Reset process tracking when completed
+    scrapingProcess = null;
   } catch (error) {
+    // Reset process tracking on error
+    scrapingProcess = null;
     event.reply("scraper-status", `❌ Error: ${error.message}`);
   }
 });
@@ -60,12 +71,28 @@ ipcMain.on("run-scraper", async (event, query) => {
 ipcMain.on("cancel-scraper", async (event) => {
   try {
     if (scrapingProcess) {
-      await cancelScraping();
+      console.log("Cancelling scraping process...");
+      
+      // Wait for the cancellation to complete properly
+      try {
+        await cancelScraping();
+        // Wait for the process to actually finish cancelling
+        await scrapingProcess.catch(() => {}); // Catch any errors from the cancelled process
+      } catch (cancelError) {
+        console.error("Error during cancellation:", cancelError);
+      }
+      
       scrapingProcess = null;
       event.reply("scraper-status", "❌ Scraping cancelled by user");
+      console.log("Scraping process successfully cancelled and reset");
+    } else {
+      event.reply("scraper-status", "ℹ️ No scraping process to cancel");
     }
   } catch (error) {
     console.error("Error cancelling scraper:", error);
+    // Ensure process is reset even if cancellation fails
+    scrapingProcess = null;
+    event.reply("scraper-status", "❌ Error cancelling scraper, process reset");
   }
 });
 
