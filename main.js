@@ -18,13 +18,13 @@ let emailDB = null;
 
 // Email normalization function to ensure consistent email cleaning across the app
 function normalizeEmail(email) {
-  if (!email || typeof email !== 'string') {
-    return '';
+  if (!email || typeof email !== "string") {
+    return "";
   }
-  
+
   return email
-    .replace(/\s*\(estimated\)\s*/gi, '') // Remove "(estimated)" case-insensitive
-    .replace(/\s*\(.*?\)\s*/g, '') // Remove any other text in parentheses
+    .replace(/\s*\(estimated\)\s*/gi, "") // Remove "(estimated)" case-insensitive
+    .replace(/\s*\(.*?\)\s*/g, "") // Remove any other text in parentheses
     .trim()
     .toLowerCase(); // Convert to lowercase for consistent comparison
 }
@@ -52,13 +52,16 @@ ipcMain.on("run-scraper", async (event, query) => {
   try {
     // Prevent starting new scraping if one is already running
     if (scrapingProcess) {
-      event.reply("scraper-status", "⚠️ Scraping already in progress. Please cancel current process first.");
+      event.reply(
+        "scraper-status",
+        "⚠️ Scraping already in progress. Please cancel current process first."
+      );
       return;
     }
 
     scrapingProcess = searchGoogleMaps(query, event);
     await scrapingProcess;
-    
+
     // Reset process tracking when completed
     scrapingProcess = null;
   } catch (error) {
@@ -72,7 +75,7 @@ ipcMain.on("cancel-scraper", async (event) => {
   try {
     if (scrapingProcess) {
       console.log("Cancelling scraping process...");
-      
+
       // Wait for the cancellation to complete properly
       try {
         await cancelScraping();
@@ -81,7 +84,7 @@ ipcMain.on("cancel-scraper", async (event) => {
       } catch (cancelError) {
         console.error("Error during cancellation:", cancelError);
       }
-      
+
       scrapingProcess = null;
       event.reply("scraper-status", "❌ Scraping cancelled by user");
       console.log("Scraping process successfully cancelled and reset");
@@ -249,7 +252,7 @@ async function sendEmailWithRetry(
 
       // Remove subject from email content if it appears at the beginning
       if (emailContent.trim().startsWith(emailSubjectProcessed)) {
-        emailContent = emailContent.replace(emailSubjectProcessed, '').trim();
+        emailContent = emailContent.replace(emailSubjectProcessed, "").trim();
       }
 
       // Convert plain text to HTML with proper formatting
@@ -331,22 +334,24 @@ ipcMain.on("send-emails", async (event, { emailData, template, subject }) => {
     const gmail = google.gmail({ version: "v1", auth: oauth2Client });
     let sentCount = 0;
     let failedCount = 0;
-    const validEmails = emailData.filter((data) => {
-      // Basic email validation using normalized email
-      const email = normalizeEmail(data.email);
-      return (
-        email &&
-        email !== "no info" &&
-        email !== "fetching..." &&
-        email.includes("@") &&
-        email.includes(".") &&
-        !email.match(/^\d+$/) && // Not just numbers
-        email.length > 5
-      );
-    }).map(data => ({
-      ...data,
-      email: normalizeEmail(data.email) // Ensure the email is normalized for processing
-    }));
+    const validEmails = emailData
+      .filter((data) => {
+        // Basic email validation using normalized email
+        const email = normalizeEmail(data.email);
+        return (
+          email &&
+          email !== "no info" &&
+          email !== "fetching..." &&
+          email.includes("@") &&
+          email.includes(".") &&
+          !email.match(/^\d+$/) && // Not just numbers
+          email.length > 5
+        );
+      })
+      .map((data) => ({
+        ...data,
+        email: normalizeEmail(data.email), // Ensure the email is normalized for processing
+      }));
     const totalEmails = validEmails.length;
 
     event.reply(
@@ -356,8 +361,10 @@ ipcMain.on("send-emails", async (event, { emailData, template, subject }) => {
 
     // Prepare template data with subject and body
     const templateData = {
-      subject: subject || "PRU LIFE UK FINANCIAL WELLNESS AND RETIREMENT PROGRAM PROPOSAL",
-      body: template
+      subject:
+        subject ||
+        "PRU LIFE UK FINANCIAL WELLNESS AND RETIREMENT PROGRAM PROPOSAL",
+      body: template,
     };
 
     for (const [index, data] of validEmails.entries()) {
