@@ -361,7 +361,13 @@ Junior Unit Manager`;
   targetRows.forEach((checkbox) => {
     const row = checkbox.closest("tr");
     const cells = row.querySelectorAll("td");
-    const email = cells[3].textContent.trim();
+    const rawEmail = cells[3].textContent.trim();
+    
+    // Clean the email address by removing "(estimated)" and other unwanted text
+    const email = rawEmail
+      .replace(/\s*\(estimated\)\s*/gi, '') // Remove "(estimated)" case-insensitive
+      .replace(/\s*\(.*?\)\s*/g, '') // Remove any other text in parentheses
+      .trim();
 
     if (email && email !== "No info" && email !== "Fetching...") {
       emailData.push({
